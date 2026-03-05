@@ -1,0 +1,28 @@
+services:
+  claude-dev:
+    container_name: claude-dev
+    build:
+      context: .
+      additional_contexts:
+        dotfiles: /Users/aj
+    user: 'aj'
+    ports:
+      - "2222:22"       # SSH into the container on port 2222
+    volumes:
+      - /Users/aj/Documents/code:/workspace
+      - ./data/home:/home/aj/
+      - /Users/aj/.claude:/home/aj/.claude
+      - /Users/aj/.claude.json:/home/aj/.claude.json
+      - ./data/ssh:/etc/ssh                      # persist SSH host keys across rebuilds
+
+    command: >
+      sh -c "
+        if [ ! -f /etc/ssh/sshd_config ]; then
+          sudo cp -r /etc/ssh.original/. /etc/ssh/
+          sudo ssh-keygen -A
+        fi
+        sudo /usr/sbin/sshd -D
+      "
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+    restart: always

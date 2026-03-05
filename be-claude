@@ -1,0 +1,11 @@
+#!/bin/bash
+set -euo pipefail
+
+full=$(pwd)
+base=/Users/aj/Documents/code
+if [[ "$full" == "$base/"* ]]; then
+    prep="cd code/${full#$base/}; "
+else
+    prep=""
+fi
+ssh -t -p 2222 localhost "$prep GH_TOKEN=$(op plugin run -- gh auth token) ~/.local/bin/claude --dangerously-skip-permissions"
