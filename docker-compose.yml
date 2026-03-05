@@ -5,11 +5,13 @@ services:
       context: .
       additional_contexts:
         dotfiles: /Users/aj
+      args:
+        CODE_PATH: ${CODE_PATH}
     user: 'aj'
     ports:
       - "2222:22"       # SSH into the container on port 2222
     volumes:
-      - /Users/aj/Documents/code:/Users/aj/Documents/code
+      - ${CODE_PATH}:${CODE_PATH}
       - ./data/home:/home/aj/
       - /Users/aj/.claude:/home/aj/.claude
       - /Users/aj/.claude.json:/home/aj/.claude.json

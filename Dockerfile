@@ -43,6 +43,7 @@ RUN printf '%s\n' \
 
 # Non-root user for better isolation
 ARG USERNAME=aj
+ARG CODE_PATH=/Users/aj/Documents/code
 RUN useradd -ms /bin/zsh $USERNAME && \
     echo "$USERNAME ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
@@ -53,7 +54,7 @@ RUN mkdir /var/run/sshd && \
 RUN ln -s /home /Users
 
 USER $USERNAME
-WORKDIR /Users/aj/Documents/code
+WORKDIR $CODE_PATH
 
 RUN go install golang.org/x/tools/gopls@latest
 

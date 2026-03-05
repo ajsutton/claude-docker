@@ -1,8 +1,11 @@
 #!/bin/bash
 set -euo pipefail
 
+# Load config
+source "$(dirname "$0")/.env"
+
 full=$(pwd)
-base=/Users/aj/Documents/code
+base=$CODE_PATH
 if [[ "$full" == "$base"* ]]; then
     prep="cd $full; "
 else
