@@ -20,23 +20,23 @@ Copy the example and fill in your values:
 cp .env.example .env
 ```
 
-Edit `.env`:
+Edit `.env` and fill in at minimum `CODE_PATH` and `SSH_AUTHORIZED_KEYS`:
 
 ```sh
 # Path to your local code directory
 CODE_PATH=/Users/yourname/Documents/code
 
+# Your SSH public key (for SSHing into the container)
+SSH_AUTHORIZED_KEYS="ssh-ed25519 AAAA...your_key_here... user@host"
 ```
 
-### 2. Add your SSH public key
-
-Place your public key in `files/authorized_keys` so you can SSH into the container:
+You can get your public key with:
 
 ```sh
-cp ~/.ssh/id_ed25519.pub files/authorized_keys
+cat ~/.ssh/id_ed25519.pub
 ```
 
-### 3. Build and start the container
+### 2. Build and start the container
 
 ```sh
 ./run.sh
@@ -44,7 +44,7 @@ cp ~/.ssh/id_ed25519.pub files/authorized_keys
 
 This runs `docker compose up -d --build`.
 
-### 4. Use Claude Code
+### 3. Use Claude Code
 
 From any directory inside your `CODE_PATH`, run:
 
@@ -54,6 +54,8 @@ From any directory inside your `CODE_PATH`, run:
 
 This SSHs into the container and launches Claude Code in the equivalent directory.
 
+`be-claude` will use `GH_TOKEN` from your environment if set, otherwise it falls back to fetching one via the [1Password CLI](https://developer.1password.com/docs/cli/) (`op`).
+
 ## Configuration
 
 All user-specific configuration lives in `.env` (not committed to git). See `.env.example` for available options.
@@ -61,11 +63,20 @@ All user-specific configuration lives in `.env` (not committed to git). See `.en
 | Variable | Description |
 |---|---|
 | `CODE_PATH` | Absolute path to your code directory on the host |
+| `SSH_AUTHORIZED_KEYS` | SSH public key(s) allowed into the container |
+| `SSH_PORT` | Host port mapped to SSH inside the container (default: `2222`) |
+| `COMPOSE_PROJECT_NAME` | Container name; override to run multiple instances (default: `claude-dev`) |
 
-## Persisted data
+## Mounted paths
+
+These paths from your host are mounted into the container:
 
 | Path | Description |
 |---|---|
-| `data/home/` | The container user's home directory |
-| `data/ssh/` | SSH host keys (preserved across rebuilds) |
-| `~/.claude` | Claude config, mounted from the host |
+| `$CODE_PATH` | Your code directory (read/write) |
+| `~/.claude` | Claude config and data |
+| `~/.claude.json` | Claude auth |
+| `~/.gitconfig` | Git config (read-only) |
+| `~/.gitignore` | Global gitignore (read-only) |
+
+SSH host keys are preserved across container rebuilds in a named Docker volume.
