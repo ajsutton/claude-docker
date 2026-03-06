@@ -23,9 +23,6 @@ cp .env.example .env
 Edit `.env`:
 
 ```sh
-# Your local username
-USERNAME=yourname
-
 # Path to your local code directory
 CODE_PATH=/Users/yourname/Documents/code
 
@@ -63,7 +60,6 @@ All user-specific configuration lives in `.env` (not committed to git). See `.en
 
 | Variable | Description |
 |---|---|
-| `USERNAME` | Your local username — used as the container user and in mount paths |
 | `CODE_PATH` | Absolute path to your code directory on the host |
 
 ## Persisted data

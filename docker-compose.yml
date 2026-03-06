@@ -5,15 +5,15 @@ services:
       context: .
       args:
         CODE_PATH: ${CODE_PATH}
-        USERNAME: ${USERNAME}
-    user: '${USERNAME}'
+        USERNAME: ${USER}
+    user: '${USER}'
     ports:
       - "2222:22"       # SSH into the container on port 2222
     volumes:
       - ${CODE_PATH}:${CODE_PATH}
-      - ./data/home:/home/${USERNAME}/
-      - ${HOME}/.claude:/home/${USERNAME}/.claude
-      - ${HOME}/.claude.json:/home/${USERNAME}/.claude.json
+      - ./data/home:/home/${USER}/
+      - ${HOME}/.claude:/home/${USER}/.claude
+      - ${HOME}/.claude.json:/home/${USER}/.claude.json
       - ./data/ssh:/etc/ssh                      # persist SSH host keys across rebuilds
 
     command: >
