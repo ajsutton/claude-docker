@@ -50,7 +50,9 @@ RUN npm install -g diff-so-fancy
 
 # SSH setup
 RUN mkdir /var/run/sshd && \
-    cp -r /etc/ssh /etc/ssh.original
+    cp -r /etc/ssh /etc/ssh.original && \
+    echo 'AcceptEnv ITERM_SESSION_ID' >> /etc/ssh/sshd_config && \
+    echo 'AcceptEnv ITERM_SESSION_ID' >> /etc/ssh.original/sshd_config
 
 # Non-root user for better isolation
 ARG USERNAME
@@ -94,6 +96,13 @@ RUN go install golang.org/x/tools/gopls@latest
 
 # Install mise
 RUN curl https://mise.run | sh
+
+# Install iTerm2 utilities
+RUN for util in imgcat imgls it2api it2attention it2cat it2check it2copy it2dl it2getvar it2git it2profile it2setcolor it2setkeylabel it2ssh it2tip it2ul it2universion; do \
+        curl -fsSL "https://raw.githubusercontent.com/gnachman/iTerm2-shell-integration/main/utilities/$util" \
+            -o "/usr/local/bin/$util" && \
+        chmod +x "/usr/local/bin/$util"; \
+    done
 
 # Install Claude Code (native install, auto-updates in background)
 RUN curl -fsSL https://claude.ai/install.sh | bash
