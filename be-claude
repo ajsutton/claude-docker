@@ -21,4 +21,4 @@ if [[ "$full" == "$base"* ]]; then
 else
     prep=""
 fi
-ssh -t -p 2222 localhost "$prep GH_TOKEN=$(op plugin run -- gh auth token) ~/.local/bin/claude --dangerously-skip-permissions"
+ssh -t -p "${SSH_PORT:-2222}" localhost "$prep GH_TOKEN=$(op plugin run -- gh auth token) ~/.local/bin/claude --dangerously-skip-permissions"

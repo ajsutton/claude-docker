@@ -1,5 +1,4 @@
 export EDITOR="vim"
-source .zshrc.d/*
 
 # enable color support of ls and also add handy aliases
 if [ -x /usr/bin/dircolors ]; then
@@ -16,7 +15,10 @@ fi
 alias ll='ls -alF'
 alias la='ls -A'
 alias l='ls -CF'
+alias vi='vim'
 
 
 
-export PATH="$PATH:$HOME/.local/bin/"
+export PS1='%(?:➜ :➜ ) %F{cyan}%c%f '
+
+eval "$(mise activate zsh)"

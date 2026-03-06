@@ -1,18 +1,18 @@
 services:
   claude-dev:
-    container_name: claude-dev
+    container_name: ${COMPOSE_PROJECT_NAME:-claude-dev}
     build:
       context: .
       args:
         CODE_PATH: ${CODE_PATH}
         USERNAME: ${USER}
         USER_HOME: ${HOME}
+        SSH_AUTHORIZED_KEYS: ${SSH_AUTHORIZED_KEYS}
     user: '${USER}'
     ports:
-      - "2222:22"       # SSH into the container on port 2222
+      - "${SSH_PORT:-2222}:22"
     volumes:
       - ${CODE_PATH}:${CODE_PATH}
-      - ./data/home:${HOME}/
       - ${HOME}/.claude:${HOME}/.claude
       - ${HOME}/.claude.json:${HOME}/.claude.json
       - ./data/ssh:/etc/ssh                      # persist SSH host keys across rebuilds
