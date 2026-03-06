@@ -21,4 +21,9 @@ if [[ "$full" == "$base"* ]]; then
 else
     prep=""
 fi
-ssh -t -p "${SSH_PORT:-2222}" localhost "$prep GH_TOKEN=${GH_TOKEN:-$(op plugin run -- gh auth token)} ~/.local/bin/claude --dangerously-skip-permissions"
+iterm_opts=()
+if [[ -n "${ITERM_SESSION_ID:-}" ]]; then
+    iterm_opts=(-o "SendEnv=ITERM_SESSION_ID")
+fi
+
+ssh -t -p "${SSH_PORT:-2222}" "${iterm_opts[@]}" localhost "$prep GH_TOKEN=${GH_TOKEN:-$(op plugin run -- gh auth token)} ~/.local/bin/claude --dangerously-skip-permissions"
