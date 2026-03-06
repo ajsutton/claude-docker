@@ -30,6 +30,12 @@ services:
         read_only: true
         bind:
           create_host_path: false
+      - build-cache:${HOME}/.cache
+
+    environment:
+      - GOMODCACHE=${HOME}/.cache/go-mod
+      - CARGO_HOME=${HOME}/.cache/cargo
+      - SVM_HOME=${HOME}/.cache/svm
 
     command: >
       sh -c "
@@ -44,3 +50,4 @@ services:
 
 volumes:
   ssh-host-keys:
+  build-cache:
