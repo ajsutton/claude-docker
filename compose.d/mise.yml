@@ -1,0 +1,15 @@
+services:
+  claude-dev:
+    volumes:
+      - type: bind
+        source: ${HOME}/.local/state/mise/trusted-configs
+        target: ${HOME}/.local/state/mise/trusted-configs
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${HOME}/.local/state/mise/tracked-configs
+        target: ${HOME}/.local/state/mise/tracked-configs
+        read_only: true
+        bind:
+          create_host_path: false

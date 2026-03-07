@@ -19,4 +19,10 @@ if [ -z "${SSH_AUTHORIZED_KEYS:-}" ]; then
 fi
 
 export SSH_AUTHORIZED_KEYS
-docker compose up -d --build
+
+COMPOSE_FILES="-f docker-compose.yml"
+[ -f "$HOME/.gitconfig" ] && COMPOSE_FILES="$COMPOSE_FILES -f compose.d/gitconfig.yml"
+[ -f "$HOME/.gitignore" ] && COMPOSE_FILES="$COMPOSE_FILES -f compose.d/gitignore.yml"
+[ -d "$HOME/.local/state/mise" ] && COMPOSE_FILES="$COMPOSE_FILES -f compose.d/mise.yml"
+
+docker compose $COMPOSE_FILES up -d --build

@@ -1,0 +1,9 @@
+services:
+  claude-dev:
+    volumes:
+      - type: bind
+        source: ${HOME}/.gitconfig
+        target: ${HOME}/.gitconfig
+        read_only: true
+        bind:
+          create_host_path: false

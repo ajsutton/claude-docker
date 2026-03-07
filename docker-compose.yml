@@ -19,24 +19,6 @@ services:
       - ${HOME}/.claude:${HOME}/.claude
       - ${HOME}/.claude.json:${HOME}/.claude.json
       - ssh-host-keys:/etc/ssh
-      - type: bind
-        source: ${HOME}/.gitconfig
-        target: ${HOME}/.gitconfig
-        read_only: true
-        bind:
-          create_host_path: false
-      - type: bind
-        source: ${HOME}/.gitignore
-        target: ${HOME}/.gitignore
-        read_only: true
-        bind:
-          create_host_path: false
-      - type: bind
-        source: ${HOME}/.local/share/mise/trusted-configs
-        target: ${HOME}/.local/share/mise/trusted-configs
-        read_only: true
-        bind:
-          create_host_path: false
       - build-cache:${HOME}/.cache
 
     environment:
