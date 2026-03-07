@@ -73,6 +73,7 @@ The `certs/` directory is gitignored so certificates stay local.
 | `~/.claude.json` | `~/.claude.json` | read/write |
 | `~/.gitconfig` | `~/.gitconfig` | read-only |
 | `~/.gitignore` | `~/.gitignore` | read-only |
+| `~/.local/share/mise/trusted-configs` | `~/.local/share/mise/trusted-configs` | read-only |
 
 ## Persistent volumes
 
