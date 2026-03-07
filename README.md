@@ -54,7 +54,7 @@ From any directory inside your `CODE_PATH`, run:
 
 This SSHs into the container and launches Claude Code in the equivalent directory.
 
-`be-claude` will use `GH_TOKEN` from your environment if set, otherwise it falls back to fetching one via the [1Password CLI](https://developer.1password.com/docs/cli/) (`op`).
+`be-claude` will use `GH_TOKEN` from your environment if set, otherwise it falls back to `gh auth token` (the [GitHub CLI](https://cli.github.com/)).
 
 ## Configuration
 
