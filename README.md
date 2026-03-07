@@ -1,88 +1,96 @@
 # claude-docker
 
-A Docker-based development environment for running [Claude Code](https://claude.ai/claude-code) in an isolated container. The container runs an SSH server so you can connect to it from your terminal or editor as if it were a remote machine.
+Run [Claude Code](https://claude.ai/claude-code) in an isolated Docker container. The container mirrors your local environment — same username, same file paths, same git config — so you can work as if Claude is running natively.
 
-Your local code directory is mounted at the same path inside the container, so file paths are identical on both sides — no translation needed.
-
-## How it works
-
-- An Ubuntu container runs `sshd` on port 2222
-- Your code directory is bind-mounted at the same path inside the container
-- `be-claude` is a helper script that SSHs into the container and launches Claude Code in the directory matching your current working directory
-
-## Setup
-
-### 1. Create your `.env` file
-
-Copy the example and fill in your values:
+## Quick start
 
 ```sh
 cp .env.example .env
-```
-
-Edit `.env` and fill in at minimum `CODE_PATH` and `SSH_AUTHORIZED_KEYS`:
-
-```sh
-# Path to your local code directory
-CODE_PATH=/Users/yourname/Documents/code
-
-# Your SSH public key (for SSHing into the container)
-SSH_AUTHORIZED_KEYS="ssh-ed25519 AAAA...your_key_here... user@host"
-```
-
-You can get your public key with:
-
-```sh
-cat ~/.ssh/id_ed25519.pub
-```
-
-### 2. Build and start the container
-
-```sh
+# Edit .env — set CODE_PATH to your code directory
 ./run.sh
-```
-
-This runs `docker compose up -d --build`.
-
-### 3. Use Claude Code
-
-From any directory inside your `CODE_PATH`, run:
-
-```sh
 ./be-claude
 ```
 
-This SSHs into the container and launches Claude Code in the equivalent directory.
+That's it. `run.sh` builds and starts the container, `be-claude` SSHs in and launches Claude Code in your current directory.
 
-`be-claude` will use `GH_TOKEN` from your environment if set, otherwise it falls back to `gh auth token` (the [GitHub CLI](https://cli.github.com/)).
+If `SSH_AUTHORIZED_KEYS` isn't set in `.env`, `run.sh` automatically uses keys from your ssh-agent.
+
+## How it works
+
+An Ubuntu container runs an SSH server on port 2222. Your code directory is bind-mounted at the same path inside the container, so file references are identical on both sides. `be-claude` connects via SSH and starts Claude in the directory matching your current working directory on the host.
+
+The container comes with Go, Node.js, Rust tooling, [mise](https://mise.run), [gopls](https://pkg.go.dev/golang.org/x/tools/gopls), git, gh, and other common development tools pre-installed.
+
+## Usage
+
+### be-claude
+
+Run from anywhere inside your `CODE_PATH`:
+
+```sh
+./be-claude                    # launch Claude Code
+./be-claude --resume           # pass arguments through to claude
+```
+
+`be-claude` can be symlinked onto your `PATH` for convenience — it resolves its own location to find `.env`.
+
+A GitHub token is passed into the container automatically. It uses `GH_TOKEN` from your environment if set, otherwise it runs `gh auth token`.
+
+### Starting and stopping
+
+```sh
+./run.sh     # build and start (docker compose up -d --build)
+./stop.sh    # stop (docker compose down)
+```
 
 ## Configuration
 
-All user-specific configuration lives in `.env` (not committed to git). See `.env.example` for available options.
+All configuration lives in `.env` (gitignored). Copy `.env.example` to get started.
 
-| Variable | Description |
-|---|---|
-| `CODE_PATH` | Absolute path to your code directory on the host |
-| `SSH_AUTHORIZED_KEYS` | SSH public key(s) allowed into the container |
-| `SSH_PORT` | Host port mapped to SSH inside the container (default: `2222`) |
-| `COMPOSE_PROJECT_NAME` | Container name; override to run multiple instances (default: `claude-dev`) |
+| Variable | Default | Description |
+|---|---|---|
+| `CODE_PATH` | *(required)* | Absolute path to your code directory on the host |
+| `SSH_AUTHORIZED_KEYS` | ssh-agent keys | SSH public key(s) allowed into the container |
+| `SSH_PORT` | `2222` | Host port mapped to the container's SSH server |
+| `COMPOSE_PROJECT_NAME` | `claude-dev` | Container name — override to run multiple instances |
+| `CLAUDE_ARGS` | *(empty)* | Default arguments passed to claude (e.g. `--dangerously-skip-permissions`) |
 
 ## Custom CA certificates
 
-If your network requires custom root CA certificates (e.g., for corporate proxies or internal domains), drop `.crt` files into the `certs/` directory. They will be installed into the container's trust store on the next build.
+Drop `.crt` files into the `certs/` directory and rebuild. They are installed into the container's trust store automatically.
 
-The `certs/` directory is gitignored, so your certificates stay local and are never committed.
+The `certs/` directory is gitignored so certificates stay local.
 
-## Mounted paths
+## What gets mounted
 
-These paths from your host are mounted into the container:
+| Host path | Container path | Mode |
+|---|---|---|
+| `$CODE_PATH` | `$CODE_PATH` | read/write |
+| `~/.claude` | `~/.claude` | read/write |
+| `~/.claude.json` | `~/.claude.json` | read/write |
+| `~/.gitconfig` | `~/.gitconfig` | read-only |
+| `~/.gitignore` | `~/.gitignore` | read-only |
 
-| Path | Description |
-|---|---|
-| `$CODE_PATH` | Your code directory (read/write) |
-| `~/.claude` | Claude config and data |
-| `~/.claude.json` | Claude auth |
-| `~/.gitconfig` | Git config (read-only) |
-| `~/.gitignore` | Global gitignore (read-only) |
+## Persistent volumes
 
-SSH host keys are preserved across container rebuilds in a named Docker volume.
+Named Docker volumes preserve data across container rebuilds:
+
+| Volume | Mounted at | Contents |
+|---|---|---|
+| `ssh-host-keys` | `/etc/ssh` | SSH host keys (avoids host key warnings after rebuild) |
+| `build-cache` | `~/.cache` | Go build/module cache, Cargo registry, Foundry cache, solc binaries, mise cache |
+
+Environment variables redirect tool caches into `~/.cache` so a single volume covers everything:
+
+- `GOMODCACHE` → `~/.cache/go-mod`
+- `CARGO_HOME` → `~/.cache/cargo`
+- `SVM_HOME` → `~/.cache/svm`
+- Foundry and mise use `~/.cache` by default (XDG convention)
+
+## Pre-installed tools
+
+git, gh, go, gopls, node, npm, mise, tmux, vim, zsh, fzf, ripgrep, diff-so-fancy, jq, make, gpg, iTerm2 utilities
+
+## SSH agent forwarding
+
+If you connect with SSH agent forwarding (`ssh -A`), your host SSH keys are available inside the container. Git commit signing is configured automatically via `setupGitSigning.sh` when agent keys are present.
