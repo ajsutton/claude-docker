@@ -54,6 +54,7 @@ All configuration lives in `.env` (gitignored). Copy `.env.example` to get start
 | `SSH_PORT` | `2222` | Host port mapped to the container's SSH server |
 | `COMPOSE_PROJECT_NAME` | `claude-dev` | Container name — override to run multiple instances |
 | `CLAUDE_ARGS` | *(empty)* | Default arguments passed to claude (e.g. `--dangerously-skip-permissions`) |
+| `EXTRA_PACKAGES` | *(empty)* | Additional apt packages to install in the container (e.g. `postgresql-client redis-tools`) |
 
 ## Custom CA certificates
 

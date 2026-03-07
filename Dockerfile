@@ -6,6 +6,10 @@ RUN apt-get update && apt-get install -y \
     openssh-server jq vim gh golang gpg python3.12-venv \
     ca-certificates tmux
 
+# Install additional apt packages specified by the user
+ARG EXTRA_PACKAGES=""
+RUN if [ -n "$EXTRA_PACKAGES" ]; then apt-get install -y $EXTRA_PACKAGES; fi
+
 # Install custom CA certificates (drop .crt files into certs/ to include them)
 COPY certs/ /usr/local/share/ca-certificates/custom/
 RUN update-ca-certificates

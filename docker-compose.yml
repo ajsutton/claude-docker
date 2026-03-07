@@ -10,6 +10,7 @@ services:
         USERNAME: ${USER}
         USER_HOME: ${HOME}
         SSH_AUTHORIZED_KEYS: ${SSH_AUTHORIZED_KEYS}
+        EXTRA_PACKAGES: ${EXTRA_PACKAGES:-}
     user: '${USER}'
     ports:
       - "${SSH_PORT:-2222}:22"
