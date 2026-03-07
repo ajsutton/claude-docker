@@ -26,4 +26,4 @@ if [[ -n "${ITERM_SESSION_ID:-}" ]]; then
     iterm_opts=(-o "SendEnv=ITERM_SESSION_ID")
 fi
 
-ssh -t -p "${SSH_PORT:-2222}" "${iterm_opts[@]}" localhost "$prep GH_TOKEN=${GH_TOKEN:-$(gh auth token)} ~/.local/bin/claude --dangerously-skip-permissions $(printf '%q ' "$@")"
+ssh -t -p "${SSH_PORT:-2222}" "${iterm_opts[@]}" localhost "$prep GH_TOKEN=${GH_TOKEN:-$(gh auth token)} ~/.local/bin/claude ${CLAUDE_ARGS:-} $(printf '%q ' "$@")"
