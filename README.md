@@ -36,7 +36,7 @@ Run from anywhere inside your `CODE_PATH`:
 
 `be-claude` can be symlinked onto your `PATH` for convenience — it resolves its own location to find `.env`.
 
-A GitHub token is passed into the container automatically. It uses `GH_TOKEN` from your environment if set, otherwise it runs `gh auth token`. If you use 1Password for gh authentication, set `USE_1PASSWORD_GH=1` in `.env` to run `op plugin run -- gh auth token` instead.
+Environment variables listed in `FORWARD_ENVS` are forwarded securely into the container via SSH's `SendEnv` mechanism — values never appear in process arguments. Since `.env` is sourced as bash, you can use command substitution to set values dynamically (e.g. `GH_TOKEN=$(gh auth token)`). See `.env.example` for a typical setup.
 
 ### Starting and stopping
 
@@ -56,7 +56,7 @@ All configuration lives in `.env` (gitignored). Copy `.env.example` to get start
 | `SSH_PORT` | `2222` | Host port mapped to the container's SSH server |
 | `COMPOSE_PROJECT_NAME` | `claude-dev` | Container name — override to run multiple instances |
 | `CLAUDE_ARGS` | *(empty)* | Default arguments passed to claude (e.g. `--dangerously-skip-permissions`) |
-| `USE_1PASSWORD_GH` | *(empty)* | Set to `1` to use 1Password CLI plugin for the GitHub token (`op plugin run -- gh auth token`) |
+| `FORWARD_ENVS` | *(empty)* | Space-separated list of env var names to forward into the container |
 | `EXTRA_PACKAGES` | *(empty)* | Additional apt packages to install in the container (e.g. `postgresql-client redis-tools`) |
 
 ## Custom CA certificates

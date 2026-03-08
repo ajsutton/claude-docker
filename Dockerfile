@@ -24,8 +24,8 @@ RUN npm install -g diff-so-fancy
 # SSH setup
 RUN mkdir /var/run/sshd && \
     cp -r /etc/ssh /etc/ssh.original && \
-    echo 'AcceptEnv ITERM_SESSION_ID' >> /etc/ssh/sshd_config && \
-    echo 'AcceptEnv ITERM_SESSION_ID' >> /etc/ssh.original/sshd_config
+    echo 'AcceptEnv ITERM_SESSION_ID FORWARD_*' >> /etc/ssh/sshd_config && \
+    echo 'AcceptEnv ITERM_SESSION_ID FORWARD_*' >> /etc/ssh.original/sshd_config
 
 # Non-root user for better isolation
 ARG USERNAME
@@ -76,6 +76,9 @@ RUN go install golang.org/x/tools/gopls@latest
 
 # Install mise
 RUN curl https://mise.run | sh
+
+# Wrapper that unprefixes FORWARD_* env vars and execs claude
+COPY --chown=${USERNAME}:${USERNAME} files/claude-wrapper ${USER_HOME}/.local/bin/claude-wrapper
 
 # Install Claude Code (native install, auto-updates in background)
 RUN curl -fsSL https://claude.ai/install.sh | bash

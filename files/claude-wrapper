@@ -1,0 +1,8 @@
+#!/bin/zsh
+# Unprefix FORWARD_* env vars and exec claude.
+# e.g. FORWARD_GH_TOKEN=xxx becomes GH_TOKEN=xxx
+for var in ${(k)parameters[(I)FORWARD_*]}; do
+    export "${var#FORWARD_}=${(P)var}"
+    unset "$var"
+done
+exec ~/.local/bin/claude "$@"

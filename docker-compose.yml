@@ -32,6 +32,7 @@ services:
           sudo cp -r /etc/ssh.original/. /etc/ssh/
           sudo ssh-keygen -A
         fi
+        sudo cp /etc/ssh.original/sshd_config /etc/ssh/sshd_config
         sudo /usr/sbin/sshd -D
       "
 
