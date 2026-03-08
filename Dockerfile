@@ -74,8 +74,9 @@ WORKDIR $CODE_PATH
 
 RUN go install golang.org/x/tools/gopls@latest
 
-# Install mise
-RUN curl https://mise.run | sh
+# Install mise and ensure state directory exists (prevents Docker creating it as root on mount)
+RUN curl https://mise.run | sh && \
+    mkdir -p ${USER_HOME}/.local/state/mise
 
 # Wrapper that unprefixes FORWARD_* env vars and execs claude
 COPY --chown=${USERNAME}:${USERNAME} files/claude-wrapper ${USER_HOME}/.local/bin/claude-wrapper
