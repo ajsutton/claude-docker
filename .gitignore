@@ -4,3 +4,4 @@
 !/certs/.gitkeep
 /compose.d/*
 !/compose.d/.gitkeep
+.mount-stage/
