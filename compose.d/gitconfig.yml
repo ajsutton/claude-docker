@@ -2,7 +2,7 @@ services:
   claude-dev:
     volumes:
       - type: bind
-        source: ${HOME}/.gitconfig
+        source: ${GITCONFIG_PATH}
         target: ${HOME}/.gitconfig
         read_only: true
         bind:

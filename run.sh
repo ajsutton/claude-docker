@@ -20,9 +20,22 @@ fi
 
 export SSH_AUTHORIZED_KEYS
 
+# Resolve symlinks by copying to a staging dir that Docker Desktop can mount
+MOUNT_STAGE="$SCRIPT_DIR/.mount-stage"
+rm -rf "$MOUNT_STAGE"
+mkdir -p "$MOUNT_STAGE"
+
 COMPOSE_FILES="-f docker-compose.yml"
-[ -f "$HOME/.gitconfig" ] && COMPOSE_FILES="$COMPOSE_FILES -f compose.d/gitconfig.yml"
-[ -f "$HOME/.gitignore" ] && COMPOSE_FILES="$COMPOSE_FILES -f compose.d/gitignore.yml"
+if [ -f "$HOME/.gitconfig" ]; then
+    cp -L "$HOME/.gitconfig" "$MOUNT_STAGE/.gitconfig"
+    export GITCONFIG_PATH="$MOUNT_STAGE/.gitconfig"
+    COMPOSE_FILES="$COMPOSE_FILES -f compose.d/gitconfig.yml"
+fi
+if [ -f "$HOME/.gitignore" ]; then
+    cp -L "$HOME/.gitignore" "$MOUNT_STAGE/.gitignore"
+    export GITIGNORE_PATH="$MOUNT_STAGE/.gitignore"
+    COMPOSE_FILES="$COMPOSE_FILES -f compose.d/gitignore.yml"
+fi
 [ -d "$HOME/.local/state/mise" ] && COMPOSE_FILES="$COMPOSE_FILES -f compose.d/mise.yml"
 
 docker compose $COMPOSE_FILES up -d --build

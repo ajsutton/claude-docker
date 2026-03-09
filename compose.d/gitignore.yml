@@ -2,7 +2,7 @@ services:
   claude-dev:
     volumes:
       - type: bind
-        source: ${HOME}/.gitignore
+        source: ${GITIGNORE_PATH}
         target: ${HOME}/.gitignore
         read_only: true
         bind:
