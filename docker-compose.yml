@@ -12,12 +12,12 @@ services:
         SSH_AUTHORIZED_KEYS: ${SSH_AUTHORIZED_KEYS}
         EXTRA_PACKAGES: ${EXTRA_PACKAGES:-}
     ports:
-      - "${SSH_PORT:-2222}:22"
+      - "${SSH_PORT:-2222}:2222"
     volumes:
       - ${CODE_PATH}:${CODE_PATH}
       - ${HOME}/.claude:${HOME}/.claude
       - ${HOME}/.claude.json:${HOME}/.claude.json
-      - ssh-host-keys:/etc/ssh
+      - ssh-host-keys:${HOME}/.ssh
       - build-cache:${HOME}/.cache
 
     environment:
@@ -25,7 +25,6 @@ services:
       - CARGO_HOME=${HOME}/.cache/cargo
       - SVM_HOME=${HOME}/.cache/svm
 
-    user: root
     entrypoint: /usr/local/bin/entrypoint.sh
 
     restart: always
