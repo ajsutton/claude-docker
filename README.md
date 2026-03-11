@@ -111,7 +111,7 @@ Environment variables redirect tool caches into `~/.cache` so a single volume co
 
 ## Pre-installed tools
 
-git, gh, go, gopls, node, npm, mise, tmux, vim, zsh, fzf, ripgrep, diff-so-fancy, jq, make, gpg, iTerm2 utilities
+git, gh, go, gopls, node, npm, mise, tmux, vim, zsh, fzf, ripgrep, diff-so-fancy, jq, make, gpg, [tuicr](https://github.com/agavra/tuicr), iTerm2 utilities
 
 ## SSH agent forwarding
 

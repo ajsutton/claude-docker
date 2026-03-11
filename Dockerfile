@@ -68,6 +68,14 @@ RUN for util in imgcat imgls it2api it2attention it2cat it2check it2copy it2dl i
         chmod +x "/usr/local/bin/$util"; \
     done
 
+# Install tuicr
+RUN ARCH=$(uname -m) && \
+    if [ "$ARCH" = "x86_64" ]; then TARGET="x86_64-unknown-linux-gnu"; \
+    else TARGET="aarch64-unknown-linux-gnu"; fi && \
+    VERSION=$(curl -fsSL https://api.github.com/repos/agavra/tuicr/releases/latest | jq -r .tag_name) && \
+    curl -fsSL "https://github.com/agavra/tuicr/releases/download/${VERSION}/tuicr-${VERSION#v}-${TARGET}.tar.gz" \
+    | tar xz -C /usr/local/bin tuicr
+
 # Entrypoint runs as root to set up SSH, then sshd handles user sessions
 COPY files/entrypoint.sh /usr/local/bin/entrypoint.sh
 
