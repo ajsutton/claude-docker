@@ -21,11 +21,8 @@ RUN curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - && \
 # Install diff-so-fancy globally
 RUN npm install -g diff-so-fancy
 
-# SSH setup
-RUN mkdir /var/run/sshd && \
-    cp -r /etc/ssh /etc/ssh.original && \
-    echo 'AcceptEnv ITERM_SESSION_ID FORWARD_*' >> /etc/ssh/sshd_config && \
-    echo 'AcceptEnv ITERM_SESSION_ID FORWARD_*' >> /etc/ssh.original/sshd_config
+# Create init.d directory for user-provided startup scripts
+RUN mkdir -p /etc/claude-docker/init.d
 
 # Non-root user for better isolation
 ARG USERNAME
@@ -43,23 +40,26 @@ RUN mkdir -p ${USER_HOME}/.zshrc.d && \
     chown ${USERNAME}:${USERNAME} ${USER_HOME}/.zshrc.d
 COPY --chown=${USERNAME}:${USERNAME} files/setupGitSigning.sh ${USER_HOME}/.zshrc.d/setupGitSigning.sh
 
-# Setup SSH authorized_keys from build arg
+# Stage SSH files in a location that won't be overlaid by the named volume.
+# The entrypoint copies these into ~/.ssh (the volume mount) on every start,
+# so authorized_keys stays current even after rebuilds.
 ARG SSH_AUTHORIZED_KEYS
-RUN mkdir -p ${USER_HOME}/.ssh && \
-    printf '%s\n' "${SSH_AUTHORIZED_KEYS}" > ${USER_HOME}/.ssh/authorized_keys && \
-    chmod 700 ${USER_HOME}/.ssh && \
-    chmod 600 ${USER_HOME}/.ssh/authorized_keys && \
-    chown -R ${USERNAME}:${USERNAME} ${USER_HOME}/.ssh
+RUN mkdir -p ${USER_HOME}/.ssh.build && \
+    printf '%s\n' "${SSH_AUTHORIZED_KEYS}" > ${USER_HOME}/.ssh.build/authorized_keys && \
+    chmod 600 ${USER_HOME}/.ssh.build/authorized_keys && \
+    chown -R ${USERNAME}:${USERNAME} ${USER_HOME}/.ssh.build
 
-# Copy known_hosts from host as a starting point (container maintains its own copy).
-# RUN --mount is used instead of COPY so we can handle the file being absent gracefully,
-# since COPY fails if the source file doesn't exist.
 RUN --mount=type=bind,from=ssh_config,target=/tmp/ssh_config \
     if [ -f /tmp/ssh_config/known_hosts ]; then \
-        cp /tmp/ssh_config/known_hosts ${USER_HOME}/.ssh/known_hosts && \
-        chmod 600 ${USER_HOME}/.ssh/known_hosts && \
-        chown ${USERNAME}:${USERNAME} ${USER_HOME}/.ssh/known_hosts; \
+        cp /tmp/ssh_config/known_hosts ${USER_HOME}/.ssh.build/known_hosts && \
+        chmod 600 ${USER_HOME}/.ssh.build/known_hosts && \
+        chown ${USERNAME}:${USERNAME} ${USER_HOME}/.ssh.build/known_hosts; \
     fi
+
+# Create .ssh directory so it exists even without the volume (for local testing)
+RUN mkdir -p ${USER_HOME}/.ssh && \
+    chmod 700 ${USER_HOME}/.ssh && \
+    chown ${USERNAME}:${USERNAME} ${USER_HOME}/.ssh
 
 # Install iTerm2 utilities
 RUN for util in imgcat imgls it2api it2attention it2cat it2check it2copy it2dl it2getvar it2git it2profile it2setcolor it2setkeylabel it2ssh it2tip it2ul it2universion; do \
@@ -76,8 +76,8 @@ RUN ARCH=$(uname -m) && \
     curl -fsSL "https://github.com/agavra/tuicr/releases/download/${VERSION}/tuicr-${VERSION#v}-${TARGET}.tar.gz" \
     | tar xz -C /usr/local/bin tuicr
 
-# Entrypoint runs as root to set up SSH, then sshd handles user sessions
-COPY files/entrypoint.sh /usr/local/bin/entrypoint.sh
+# Entrypoint runs as the non-root user (sshd on port 2222, no privilege separation)
+COPY --chmod=755 files/entrypoint.sh /usr/local/bin/entrypoint.sh
 
 USER $USERNAME
 WORKDIR $CODE_PATH
