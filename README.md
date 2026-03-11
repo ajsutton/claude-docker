@@ -72,7 +72,21 @@ volumes:
 services:
   claude-dev:
     volumes:
-      - rust-target:/Users/you/code/optimism/rust/target
+      - rust-target:/Users/you/code/project/rust/target
+      - ./compose.d/rust-cache.init.sh:/etc/claude-docker/init.d/rust-cache.sh:ro
+```
+
+### Init scripts
+
+Named volumes are created by Docker as root, so they may need ownership fixed before the non-root user can write to them. The entrypoint sources any `*.sh` scripts found in `/etc/claude-docker/init.d/` at startup (running as root, before sshd starts). Overlays can bind-mount init scripts into this directory.
+
+The `APP_USER` environment variable is set to the host username for use in init scripts.
+
+```sh
+# compose.d/rust-cache.init.sh
+#!/bin/sh
+target="/Users/you/code/project/rust/target"
+[ -n "$APP_USER" ] && [ -d "$target" ] && chown "$APP_USER:$APP_USER" "$target"
 ```
 
 ## Custom CA certificates
@@ -101,6 +115,8 @@ Named Docker volumes preserve data across container rebuilds:
 |---|---|---|
 | `ssh-host-keys` | `/etc/ssh` | SSH host keys (avoids host key warnings after rebuild) |
 | `build-cache` | `~/.cache` | Go build/module cache, Cargo registry, Foundry cache, solc binaries, mise cache |
+
+The `APP_USER` environment variable is also set to the host username, for use by init scripts (see [Custom compose overlays](#custom-compose-overlays)).
 
 Environment variables redirect tool caches into `~/.cache` so a single volume covers everything:
 

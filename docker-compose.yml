@@ -21,6 +21,7 @@ services:
       - build-cache:${HOME}/.cache
 
     environment:
+      - APP_USER=${USER}
       - GOMODCACHE=${HOME}/.cache/go-mod
       - CARGO_HOME=${HOME}/.cache/cargo
       - SVM_HOME=${HOME}/.cache/svm
