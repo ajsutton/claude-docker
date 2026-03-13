@@ -8,6 +8,16 @@ if [ -f "$SCRIPT_DIR/.env" ]; then
     source "$SCRIPT_DIR/.env"
 fi
 
+# Validate CODE_PATH
+if [ -z "${CODE_PATH:-}" ]; then
+    echo "Error: CODE_PATH is not set. Set it in .env to the directory you want mounted in the container." >&2
+    exit 1
+fi
+if [ ! -d "$CODE_PATH" ]; then
+    echo "Error: CODE_PATH=$CODE_PATH does not exist. Update it in .env to point to an existing directory." >&2
+    exit 1
+fi
+
 # Default SSH_AUTHORIZED_KEYS to the host ssh-agent's loaded keys
 if [ -z "${SSH_AUTHORIZED_KEYS:-}" ]; then
     if ! ssh-add -l >/dev/null 2>&1; then

@@ -12,6 +12,10 @@ SCRIPT_DIR="$(cd -P "$(dirname "$_source")" && pwd)"
 unset _source _dir
 
 # Load config
+if [ ! -f "$SCRIPT_DIR/.env" ]; then
+    echo "Error: $SCRIPT_DIR/.env not found. Copy .env.example to .env and configure it." >&2
+    exit 1
+fi
 source "$SCRIPT_DIR/.env"
 
 # Sync Claude OAuth credentials — passes the full credentials JSON (not just tokens)
@@ -56,7 +60,7 @@ if [[ "${USE_MOSH:-false}" == "true" ]] && command -v mosh &>/dev/null; then
     # then upgrades to UDP for a resilient session.
     mosh --ssh="$ssh_cmd" -p "$mosh_port" localhost -- zsh -c "$remote_cmd" || exit_code=$?
 else
-    ssh -t -p "${ssh_port}" "${send_env_opts[@]}" "${iterm_opts[@]}" localhost "$remote_cmd" || exit_code=$?
+    ssh -t -p "${ssh_port}" "${send_env_opts[@]}" ${iterm_opts[@]+"${iterm_opts[@]}"} localhost "$remote_cmd" || exit_code=$?
 fi
 
 exit "${exit_code:-0}"
