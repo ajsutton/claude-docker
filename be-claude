@@ -12,6 +12,10 @@ SCRIPT_DIR="$(cd -P "$(dirname "$_source")" && pwd)"
 unset _source _dir
 
 # Load config
+if [ ! -f "$SCRIPT_DIR/.env" ]; then
+    echo "Error: $SCRIPT_DIR/.env not found. Copy .env.example to .env and configure it." >&2
+    exit 1
+fi
 source "$SCRIPT_DIR/.env"
 
 full=$(pwd)
@@ -35,4 +39,4 @@ for key in ${FORWARD_ENVS:-}; do
     send_env_opts+=(-o "SendEnv=FORWARD_${key}")
 done
 
-ssh -t -p "${SSH_PORT:-2222}" "${send_env_opts[@]}" "${iterm_opts[@]}" localhost "${prep}~/.local/bin/claude-wrapper ${CLAUDE_ARGS:-} $(printf '%q ' "$@")"
+ssh -t -p "${SSH_PORT:-2222}" ${send_env_opts[@]+"${send_env_opts[@]}"} ${iterm_opts[@]+"${iterm_opts[@]}"} localhost "${prep}~/.local/bin/claude-wrapper ${CLAUDE_ARGS:-} $(printf '%q ' "$@")"
