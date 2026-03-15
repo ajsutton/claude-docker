@@ -14,6 +14,13 @@ unset _source _dir
 # Load config
 source "$SCRIPT_DIR/.env"
 
+# Sync Claude OAuth credentials — outputs access token to stdout.
+# Passed to the container as CLAUDE_CODE_OAUTH_TOKEN (native env var support).
+OAUTH_TOKEN="$("$SCRIPT_DIR/files/sync-claude-credentials" pre)" || true
+if [[ -n "$OAUTH_TOKEN" ]]; then
+    export FORWARD_CLAUDE_CODE_OAUTH_TOKEN="$OAUTH_TOKEN"
+fi
+
 full=$(pwd)
 base=$CODE_PATH
 if [[ "$full" == "$base"* ]]; then
@@ -28,11 +35,19 @@ fi
 
 # Forward env vars into the container via SSH SendEnv with FORWARD_ prefix.
 # The claude-wrapper script in the container strips the prefix before exec'ing claude.
-send_env_opts=()
+send_env_opts=(-o "SendEnv=FORWARD_CLAUDE_CODE_OAUTH_TOKEN")
 for key in ${FORWARD_ENVS:-}; do
     [[ -z "${!key:-}" ]] && continue
     export "FORWARD_${key}=${!key}"
     send_env_opts+=(-o "SendEnv=FORWARD_${key}")
 done
 
-ssh -t -p "${SSH_PORT:-2222}" "${send_env_opts[@]}" "${iterm_opts[@]}" localhost "${prep}~/.local/bin/claude-wrapper ${CLAUDE_ARGS:-} $(printf '%q ' "$@")"
+ssh -t -p "${SSH_PORT:-2222}" "${send_env_opts[@]}" "${iterm_opts[@]}" localhost "${prep}~/.local/bin/claude-wrapper ${CLAUDE_ARGS:-} $(printf '%q ' "$@")" || exit_code=$?
+
+# Post-sync: if container refreshed the token (written to bind-mounted file),
+# update Keychain so native Claude picks it up.
+if [ -f "$HOME/.claude/.credentials.json" ]; then
+    "$SCRIPT_DIR/files/sync-claude-credentials" post < "$HOME/.claude/.credentials.json" || true
+fi
+
+exit "${exit_code:-0}"

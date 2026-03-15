@@ -57,7 +57,21 @@ All configuration lives in `.env` (gitignored). Copy `.env.example` to get start
 | `COMPOSE_PROJECT_NAME` | `claude-dev` | Container name — override to run multiple instances |
 | `CLAUDE_ARGS` | *(empty)* | Default arguments passed to claude (e.g. `--dangerously-skip-permissions`) |
 | `FORWARD_ENVS` | *(empty)* | Space-separated list of env var names to forward into the container |
+| `CLAUDE_CREDENTIAL_SYNC` | `true` | Set to `false` to disable automatic credential sync (see below) |
 | `EXTRA_PACKAGES` | *(empty)* | Additional apt packages to install in the container (e.g. `postgresql-client redis-tools`) |
+
+## Credential sync
+
+Claude Code authenticates via OAuth. On macOS, logging in through Claude Desktop or Claude Code stores the OAuth token in the system Keychain. The container can't access the Keychain directly, so without credential sync you'd need to log in separately inside the container.
+
+`be-claude` solves this by automatically reading credentials from the macOS Keychain before each session and injecting them into the container. After the session ends, if the container refreshed the token, `be-claude` updates the Keychain so native Claude picks it up. This means you can:
+
+- **Log in once on macOS** (via Claude Desktop or `claude` on the command line) and have that login automatically work inside the container — no need to authenticate separately
+- **Log in inside the container** (if you prefer) and have the token sync back to the Keychain for native use
+
+On non-macOS hosts, the credentials file (`~/.claude/.credentials.json`) is the single source of truth — the container reads and writes it directly via bind mount.
+
+To disable syncing, set `CLAUDE_CREDENTIAL_SYNC=false` in `.env`.
 
 ## Custom compose overlays
 
