@@ -13,6 +13,7 @@ services:
         EXTRA_PACKAGES: ${EXTRA_PACKAGES:-}
     ports:
       - "${SSH_PORT:-2222}:22"
+      - "${MOSH_PORT:-60001}:60001/udp"
     volumes:
       - ${CODE_PATH}:${CODE_PATH}
       - ${HOME}/.claude:${HOME}/.claude

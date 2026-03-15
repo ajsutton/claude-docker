@@ -45,7 +45,19 @@ for key in ${FORWARD_ENVS:-}; do
     send_env_opts+=(-o "SendEnv=FORWARD_${key}")
 done
 
-ssh -t -p "${SSH_PORT:-2222}" "${send_env_opts[@]}" "${iterm_opts[@]}" localhost "${prep}~/.local/bin/claude-wrapper ${CLAUDE_ARGS:-} $(printf '%q ' "$@")" || exit_code=$?
+ssh_port="${SSH_PORT:-2222}"
+ssh_cmd="ssh -p ${ssh_port} ${send_env_opts[*]} ${iterm_opts[*]}"
+remote_cmd="${prep}~/.local/bin/claude-wrapper ${CLAUDE_ARGS:-} $(printf '%q ' "$@")"
+
+mosh_port="${MOSH_PORT:-60001}"
+
+if command -v mosh &>/dev/null; then
+    # mosh uses SSH for initial connection (env forwarding happens there),
+    # then upgrades to UDP for a resilient session.
+    mosh --ssh="$ssh_cmd" -p "$mosh_port" localhost -- zsh -c "$remote_cmd" || exit_code=$?
+else
+    ssh -t -p "${ssh_port}" "${send_env_opts[@]}" "${iterm_opts[@]}" localhost "$remote_cmd" || exit_code=$?
+fi
 
 # Post-sync: if container refreshed the token (written to bind-mounted file),
 # update Keychain so native Claude picks it up.

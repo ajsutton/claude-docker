@@ -4,7 +4,7 @@ RUN apt-get update && apt-get install -y \
     git curl zsh fzf ripgrep make \
     iptables ipset iproute2 dnsutils \
     openssh-server jq vim gh golang gpg python3.12-venv \
-    ca-certificates tmux
+    ca-certificates tmux mosh
 
 # Install additional apt packages specified by the user
 ARG EXTRA_PACKAGES=""

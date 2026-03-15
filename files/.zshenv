@@ -1,2 +1,2 @@
 export PATH="$HOME/.local/bin/:$HOME/go/bin:$PATH"
-source ~/.zshrc.d/*
+for f in ~/.zshrc.d/*.sh; do source "$f"; done
