@@ -44,4 +44,11 @@ export TZ="${TZ:-UTC}"
 
 build_compose_file_args
 
+# Stage .claude.json into a directory mount to avoid Docker single-file bind
+# mount corruption.  When Claude Code does an atomic write (write-tmp + rename)
+# on the host, a file-level bind mount loses track of the new inode and the
+# container sees stale / truncated data.  A directory mount handles this correctly.
+mkdir -p "$SCRIPT_DIR/.mount-stage"
+cp "$HOME/.claude.json" "$SCRIPT_DIR/.mount-stage/.claude.json" 2>/dev/null || true
+
 docker compose "${COMPOSE_FILE_ARGS[@]}" up -d --build

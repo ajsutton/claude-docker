@@ -16,6 +16,7 @@ cp .env.example .env
 ./run.sh
 ./be-claude    # launch Claude Code
 ./be-codex     # launch Codex CLI
+./be-exec npm test
 ```
 
 That's it. `run.sh` builds and starts the container, then use `be-claude` or `be-codex` to connect via SSH and launch the agent in your current directory. Set `USE_MOSH=true` in `.env` to use [mosh](https://mosh.org) instead for a resilient connection.
@@ -42,7 +43,7 @@ The container comes with Go, Node.js, Rust tooling, [mise](https://mise.run), [g
 
 ## Usage
 
-### be-claude / be-codex
+### be-claude / be-codex / be-exec
 
 Run from anywhere inside your `CODE_PATH`:
 
@@ -51,9 +52,12 @@ Run from anywhere inside your `CODE_PATH`:
 ./be-claude --resume           # pass arguments through to claude
 ./be-codex                     # launch Codex CLI
 ./be-codex --full-auto         # pass arguments through to codex
+./be-exec npm test             # run a command after shell login/init
 ```
 
-Both scripts can be symlinked onto your `PATH` for convenience — they resolve their own location to find `.env`.
+All three scripts can be symlinked onto your `PATH` for convenience — they resolve their own location to find `.env`.
+
+`be-exec` runs the provided command through `zsh -ilc`, which is useful for tools that expect a fully initialized login shell before execution.
 
 Environment variables listed in `FORWARD_ENVS` are forwarded securely into the container via SSH's `SendEnv` mechanism — values never appear in process arguments. Since `.env` is sourced as bash, you can use command substitution to set values dynamically (e.g. `GH_TOKEN=$(gh auth token)`). See `.env.example` for a typical setup.
 

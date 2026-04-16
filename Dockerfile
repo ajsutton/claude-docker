@@ -22,6 +22,10 @@ RUN curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - && \
 # Install diff-so-fancy and Codex CLI globally
 RUN npm install -g diff-so-fancy @openai/codex
 
+# Install additional npm packages specified by the user
+ARG EXTRA_NPM_PACKAGES=""
+RUN if [ -n "$EXTRA_NPM_PACKAGES" ]; then npm install -g $EXTRA_NPM_PACKAGES; fi
+
 # SSH setup
 RUN mkdir /var/run/sshd && \
     cp -r /etc/ssh /etc/ssh.original && \

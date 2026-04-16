@@ -50,6 +50,6 @@ build_compose_file_args() {
     # User-provided compose overlays
     local f
     for f in "$SCRIPT_DIR"/compose.d/*.yml; do
-        [ -f "$f" ] && COMPOSE_FILE_ARGS+=(-f "$f")
+        [ -f "$f" ] && COMPOSE_FILE_ARGS+=(-f "$f") || true
     done
 }

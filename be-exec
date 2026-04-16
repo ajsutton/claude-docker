@@ -1,0 +1,22 @@
+#!/bin/bash
+set -euo pipefail
+
+# Resolve the real location of this script, following symlinks (macOS + Linux)
+_source="$0"
+while [ -L "$_source" ]; do
+    _dir="$(cd -P "$(dirname "$_source")" && pwd)"
+    _source="$(readlink "$_source")"
+    [[ "$_source" != /* ]] && _source="$_dir/$_source"
+done
+SCRIPT_DIR="$(cd -P "$(dirname "$_source")" && pwd)"
+unset _source _dir
+
+source "$SCRIPT_DIR/lib/connect.sh"
+
+if [[ $# -eq 0 ]]; then
+    echo "Usage: $(basename "$0") <command> [args...]" >&2
+    exit 1
+fi
+
+remote_command="$(printf '%q ' "$@")"
+run_remote "exec zsh -ilc $(printf '%q' "$remote_command")"
