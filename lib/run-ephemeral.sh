@@ -80,6 +80,33 @@ _configure_ssh_agent_forwarding() {
     describe_ssh_agent_options >&2
 }
 
+# Append extra named-volume mounts from EXTRA_VOLUMES in .env. Format is a
+# comma-separated list of "volume-name:container-path" pairs, e.g.
+#   EXTRA_VOLUMES="rust-target:/Users/aj/Documents/code/optimism/rust/target"
+# Each entry becomes --mount type=volume,src=<name>,dst=<path> which is
+# created lazily by docker on first session. An init script under
+# files/init.d/ can chown the mount point if the tool needs the volume
+# writable by the app user (see the rust-cache example).
+_append_extra_volumes() {
+    [ -z "${EXTRA_VOLUMES:-}" ] && return
+
+    # Split on comma, then whitespace-trim. We intentionally don't support
+    # paths with commas in them — if you need that, use .env sourcing to
+    # populate a bash array directly and skip EXTRA_VOLUMES.
+    local IFS=','
+    for entry in $EXTRA_VOLUMES; do
+        entry="${entry#"${entry%%[![:space:]]*}"}"  # ltrim
+        entry="${entry%"${entry##*[![:space:]]}"}"  # rtrim
+        [ -z "$entry" ] && continue
+        if [[ "$entry" != *:* ]]; then
+            echo "Warning: EXTRA_VOLUMES entry '$entry' is not in volume:path form; skipping." >&2
+            continue
+        fi
+        local vol="${entry%%:*}" path="${entry#*:}"
+        EPH_RUN_ARGS+=(--mount "type=volume,src=${vol},dst=${path}")
+    done
+}
+
 # Populate EPH_RUN_ARGS and EPH_STAGE_DIR from the current environment.
 # EPH_CONTAINER_NAME must already be set.
 _build_ephemeral_run_args() {
@@ -133,19 +160,17 @@ _build_ephemeral_run_args() {
     done
 
     # SSH agent forwarding. Replaces `ssh -A` from the shared-container path.
-    # Needed for: onward SSH (e.g. git push over ssh://) and container-side
-    # git commit signing (see files/setupGitSigning.sh, which reads the first
-    # key from `ssh-add -L`).
-    #
-    # Platform detection:
-    #   Linux host          -> bind-mount $SSH_AUTH_SOCK directly
-    #   Docker Desktop/macOS-> use the synthesized /run/host-services/ssh-auth.sock
-    #   OrbStack/macOS      -> same synthesized path (docs.orbstack.dev/docker/)
-    # The user can override with SSH_AGENT_HOST_SOCK in .env, e.g. to point
-    # at 1Password's agent socket or the OrbStack legacy path
-    # /opt/orbstack-guest/run/host-ssh-agent.sock for third-party agents.
+    # Needed for onward SSH (e.g. git push over ssh://) and container-side
+    # git commit signing (files/setupGitSigning.sh reads `ssh-add -L`).
+    # Auto-detection lives in lib/ssh-agent-detect.sh and supports the
+    # common agents (1Password, Secretive, KeePassXC, gnome-keyring, ...)
+    # with SSH_AGENT_HOST_SOCK as an override.
     _configure_ssh_agent_forwarding
 
+    # Extra named volumes from .env — e.g. EXTRA_VOLUMES="rust-target:/path/in/container"
+    # Previously done via compose.d/ overlays; in ephemeral mode we read the
+    # comma-separated list directly. See docs/ephemeral-sessions.md.
+    _append_extra_volumes
 
     # Optional bind mounts, mirroring compose-files.sh.
     if [ -f "$HOME/.gitconfig" ]; then

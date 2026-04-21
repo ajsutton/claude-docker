@@ -1,0 +1,4 @@
+# User init scripts are host-specific — don't commit them.
+# Example files (*.sh.example) are tracked so we can ship patterns.
+*.sh
+!*.sh.example

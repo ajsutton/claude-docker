@@ -1,0 +1,14 @@
+#!/bin/sh
+# Example: make a shared rust/target named volume writable by the app user.
+#
+# Pair with in .env:
+#   EXTRA_VOLUMES="rust-target:/Users/yourname/Documents/code/optimism/rust/target"
+#
+# Copy this file to rust-cache.sh and edit the target path to match what
+# you put in EXTRA_VOLUMES. Docker creates named-volume mount points as
+# root on first attach; the chown below makes them writable by the session
+# user. sccache on top is safe for concurrent sessions (content-addressed).
+
+target="/Users/yourname/Documents/code/optimism/rust/target"
+[ -n "${APP_USER:-}" ] && [ -d "$target" ] && \
+    chown "$APP_USER:$APP_USER" "$target" 2>/dev/null || true
