@@ -1,36 +1,42 @@
-# Ephemeral Per-Session Containers (experiment)
+# Ephemeral Per-Session Containers
 
-This document captures the design, trade-offs, and — most importantly — the
-per-tool concurrency analysis for the ephemeral-session mode introduced on
-this branch. The purpose of the experiment is to surface the true cost of
-this architectural change so the maintainer can decide whether to adopt it.
+This is the deep reference for the ephemeral-session mode. Everyday
+setup lives in [`README.md`](../README.md); this doc covers the
+design rationale, the per-tool cache concurrency analysis, and what's
+implemented vs what's still open. Ephemeral mode is opt-in (`EPHEMERAL_SESSIONS=true`
+in `.env`) as of the current branch; the maintainer is dogfooding it
+before the default flip.
 
 ## TL;DR
 
 - **Design**: each `be-claude` / `be-codex` / `be-shell` / `be-exec` invocation
   runs its own `docker run` against a pre-built image. The shared long-running
-  container goes away.
+  container is still available at `EPHEMERAL_SESSIONS=false` (default).
 - **Image rebuilds don't disturb active sessions**: running containers stay
   pinned to the image they started from; the next `be-*` invocation picks up
   whatever image tag `claude-docker:latest` points to.
 - **Shared caches are still shared**: two named volumes
   (`claude-docker-build-cache` and `claude-docker-mise-installs`) are mounted
   into every session container at the same paths the shared container used.
-- **Cache concurrency verdict**: every tool we ship is safe to share except
-  `npm` (which the monorepo uses locally in `node_modules`, not out of a
-  shared cache — no actual impact) and `cargo` (mostly safe, occasional race
-  on `config.lock`; same risk exists today under the single container when
-  two agents compile Rust simultaneously).
-- **ssh-agent forwarding** is plumbed per platform (Docker Desktop / OrbStack
-  / native Linux) with a `.env` override for 1Password / Secretive.
-- **Net new operational cost**: a small startup latency per session (~1s on
-  a warm image) and loss of the compose-overlay mechanism inside sessions.
-  With todo-ui moving out of claude-docker entirely (see below), the overlay
-  porting story is smaller than originally scoped.
+  `EXTRA_VOLUMES` in `.env` lets users add project-specific ones
+  (e.g. a persistent `rust/target` dir).
+- **Cache concurrency verdict**: every tool we ship is safe to share.
+  Cargo has a minor documented race on `config.lock` but the same risk
+  exists today under the single container; npm's cache-corruption problem
+  does not apply because Claude sessions write to project `node_modules`
+  rather than a global cache.
+- **ssh-agent forwarding** auto-detects across 1Password, Secretive,
+  KeePassXC, gnome-keyring, `$SSH_AUTH_SOCK`, and the macOS synth path.
+  Run `./run.sh ssh-agent-check` to see which agent will be selected.
+- **Cleanup**: `./stop.sh` reaps orphan staging dirs; `./run.sh gc`
+  removes idle named volumes (`--apply` to actually remove).
+- **Second terminal**: `be-attach` replaces `ssh localhost -p 2222`
+  with a `docker exec` wrapper that prompts for a session if multiple
+  are running.
 
-## Why the change might be worth it
+## Why the change is worth it
 
-The current shared-container model has two real problems:
+The shared-container model has two real problems:
 
 1. **Rebuilds tear down all active sessions**. If the user rebuilds the image
    (e.g. to install a new apt package), every concurrent agent session is
@@ -43,30 +49,31 @@ The current shared-container model has two real problems:
 
 The ephemeral-container design fixes both.
 
-## Why the change might not be worth it
+## Remaining trade-offs
 
-1. **Loss of compose overlays**. `compose.d/*.yml` files are read by
-   `run.sh` for the shared container but not by `lib/run-ephemeral.sh`.
-   The scope of the porting work is now smaller than originally estimated:
-   - `todo-ui.yml` is **out of scope** — todo-ui is moving to a standalone
-     Docker container of its own, which lets claude-docker stop carrying
-     long-lived-service state entirely.
-   - `bun.yml` and `rust-cache.yml` are both session-scoped (init scripts
-     + volume mounts) and port cleanly to a per-session `docker run`
-     flag-loader backed by `files/init.d/*.sh`.
-2. **Per-session startup cost**. Every `be-claude` pays a `docker run`
+1. **Per-session startup cost**. Every `be-claude` pays a `docker run`
    setup cost — image inspect, volume mount resolution, container create,
    OverlayFS setup, entrypoint chown pass. On a warm image this is typically
    in the 1–2 second range; the shared container incurs this once at
-   `run.sh` time and then never again.
-3. **More to clean up**. Exited containers `--rm` themselves, but named
-   volumes accrete. `stop.sh` stops active sessions but doesn't reclaim
-   volumes — a dedicated `gc` path would need to exist.
-4. **SSH / mosh goes away**. The nice "just `ssh localhost -p 2222`" escape
-   hatch is gone in ephemeral mode. If the user's workflow relies on SSHing
-   in from a second terminal to debug a stuck session, that breaks. A
-   `docker exec -it claude-session-<x> zsh` replaces it, but it is less
-   ergonomic.
+   `run.sh` time and then never again. Measure on your host before
+   flipping the default.
+2. **SSH / mosh escape hatch**. Shared-container mode's `ssh localhost -p 2222`
+   from a second terminal is replaced by `be-attach` (which uses
+   `docker exec`). Mosh is gone entirely — it needs a long-lived server
+   which doesn't fit the ephemeral model. If the maintainer's workflow
+   relies on mosh for resilient remote connections, that's a hard gap.
+3. **compose.d overlays don't apply in ephemeral mode.** The replacement
+   mechanisms cover every case we've hit so far:
+   - `compose.d/bun.yml` → bun is now baked into the Dockerfile.
+   - `compose.d/rust-cache.yml` → `EXTRA_VOLUMES` + `files/init.d/rust-cache.sh`.
+   - `compose.d/todo-ui.yml` → out of scope; todo-ui is moving to its own
+     standalone Docker container.
+4. **Third-party ssh-agents on macOS may need a one-line .env override**.
+   Auto-detection covers 1Password / Secretive / KeePassXC out of the
+   box, but exotic setups (custom agent paths, agents running in a
+   non-standard bundle ID) fall through to the launchd synth path. Run
+   `./run.sh ssh-agent-check` to confirm; set `SSH_AGENT_HOST_SOCK` to
+   override.
 
 ## Per-tool cache concurrency analysis
 
@@ -175,16 +182,15 @@ diff-so-fancy @openai/codex`), which is single-threaded.
 workflow includes concurrent `npm install -g`, the shared cache could
 corrupt. Document.
 
-### bun cache (`~/.bun/install/cache`, inside `~/.cache` if `HOME` is set correctly) — SAFE
+### bun cache (`~/.bun/install/cache`, under `~/.cache` via XDG) — SAFE
 
 bun's install cache is content-addressed and designed for concurrent use
-across processes. The `bun.init.sh` overlay installs bun into `~/.bun`
-which is **not currently in the shared volume** — each ephemeral session
-would re-run the curl install. This is a genuine regression for bun users;
-the fix is either to bake bun into the Dockerfile or add `~/.bun` to the
-shared cache volume. **Punted on this branch; see "Known gaps".**
+across processes. bun itself is now installed at image build time (see
+the Dockerfile `curl -fsSL https://bun.sh/install | bash` step) so there
+is zero per-session install cost; the install cache under `~/.cache/bun`
+is shared across sessions via the `claude-docker-build-cache` volume.
 
-**Verdict**: bun cache itself is safe; packaging of bun is a gap.
+**Verdict**: safe.
 
 ### Foundry (`~/.foundry`, under `~/.cache` via XDG) — SAFE
 
@@ -208,37 +214,92 @@ Inside the container the forwarded agent is used for:
 
 Both must work in ephemeral mode to preserve parity with the shared path.
 
-### Implementation
+### Auto-detection
 
-`lib/run-ephemeral.sh::_configure_ssh_agent_forwarding` selects the host
-socket path and emits `-v <sock>:/ssh-agent -e SSH_AUTH_SOCK=/ssh-agent`.
-Selection priority:
+`lib/ssh-agent-detect.sh` tries a prioritized list of host-side socket
+paths and emits `-v <sock>:/ssh-agent -e SSH_AUTH_SOCK=/ssh-agent` for
+the first one that's a real UNIX socket (or the macOS synth-path
+fallback, which lives inside the Docker VM and can't be stat'd from the
+host). The container-side path is always `/ssh-agent`.
 
-1. `SSH_AGENT_HOST_SOCK` in `.env` (explicit override, wins unconditionally).
-2. On macOS: `/run/host-services/ssh-auth.sock` — the synthesized socket
-   exposed by both Docker Desktop and OrbStack.
-3. On Linux: `$SSH_AUTH_SOCK` from the invoking shell, bind-mounted
-   directly.
+Priority:
 
-The container-side path is hard-coded to `/ssh-agent` regardless of host.
+1. `SSH_AGENT_HOST_SOCK` in `.env` or the environment (explicit override,
+   always wins if the path is a real socket).
+2. `$SSH_AUTH_SOCK` if the docker runtime can bind-mount it. Native Linux
+   and OrbStack can mount any path; Docker Desktop can only share paths
+   inside directories it's been told to share (by default `$HOME`), so
+   a socket in `/tmp` or `/var/folders` is skipped there.
+3. Known agent socket paths on disk, checked in order:
+   - **1Password (macOS)**: `~/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock`
+   - **1Password (Linux)**: `~/.1password/agent.sock`
+   - **1Password (Linux snap)**: `~/snap/1password/common/1Password/1password-ssh-agent.sock`
+   - **Secretive**: `~/Library/Containers/com.maxgoedjen.Secretive.SecretAgent/Data/socket.ssh`
+   - **KeePassXC (macOS)**: `~/Library/Application Support/KeePassXC/sshagent.sock`
+   - **KeePassXC (Linux)**: `~/.keepassxc/sshagent.sock`
+   - **gnome-keyring**: `$XDG_RUNTIME_DIR/keyring/ssh` or `/run/user/$UID/keyring/ssh`
+4. On macOS, the Docker Desktop / OrbStack synth path
+   `/run/host-services/ssh-auth.sock` as a last resort — works for the
+   default launchd agent only. See
+   [docs.orbstack.dev/docker](https://docs.orbstack.dev/docker/) and
+   [docker/for-mac#4242](https://github.com/docker/for-mac/issues/4242).
 
-### Per-platform detail
+If detection fails, `run-ephemeral.sh` prints a warning listing every
+candidate path so the fix is obvious.
 
-| Host | Default host path | Notes |
-|---|---|---|
-| Docker Desktop (macOS) | `/run/host-services/ssh-auth.sock` | Synthesized by Docker Desktop as a bridge to the macOS launchd ssh-agent. Does **not** work with 1Password Agent or Secretive — those need `SSH_AGENT_HOST_SOCK` set. See [docker/for-mac#4242](https://github.com/docker/for-mac/issues/4242), [docker/for-mac#7204](https://github.com/docker/for-mac/issues/7204). |
-| OrbStack (macOS) | `/run/host-services/ssh-auth.sock` | OrbStack synthesizes the same path — see [docs.orbstack.dev/docker](https://docs.orbstack.dev/docker/). Same launchd-only limitation. A legacy OrbStack-specific path `/opt/orbstack-guest/run/host-ssh-agent.sock` still works if the unified proxy doesn't cooperate with a third-party agent ([orbstack/orbstack#1062](https://github.com/orbstack/orbstack/issues/1062)). |
-| Native Linux | `$SSH_AUTH_SOCK` | Direct bind mount. **Caveat**: the container user's UID must be able to read the socket. In this image that UID comes from `useradd` (typically 1000), which usually matches Linux desktop users but can mismatch on servers with non-default UIDs. The shared-container path has the same constraint today. |
+### Diagnostic: `./run.sh ssh-agent-check`
 
-### 1Password / Secretive users
+Prints the selected agent and path without starting a container:
 
-Set `SSH_AGENT_HOST_SOCK=~/.1password/agent.sock` (1Password) or the
-equivalent `~/Library/Containers/.../socket.ssh` path (Secretive) in
-`.env`. Docker Desktop / OrbStack may surface a "Permission denied" on
-first use; workarounds documented in [1Password community thread
-#133105](https://1password.community/discussion/133105). This is host
-environment configuration — the ephemeral mode just passes the path
-through unchanged.
+```
+Selected: 1Password (macOS)
+Path:     /Users/you/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock
+```
+
+### Docker provider detection
+
+`docker info --format '{{.OperatingSystem}}'` reports `OrbStack` on
+OrbStack and `Docker Desktop` on Docker Desktop; anything else (native
+Linux docker, Rancher, Colima) is treated as `native` and trusts
+arbitrary host paths. Cached in `_CD_DOCKER_PROVIDER` for the lifetime
+of the shell. This detection matters for step 2 only — every other step
+is a fixed path that's equally valid on any provider.
+
+### 1Password / Secretive setup
+
+Auto-detection covers both. The user still has to enable the SSH agent
+feature in their password manager:
+
+- **1Password**: *Settings → Developer → Use the SSH agent*.
+- **Secretive**: install, add keys, ensure the menubar agent is running.
+- **KeePassXC**: *Tools → Settings → SSH Agent → Enable SSH Agent
+  integration*; open your database so keys are decrypted.
+
+Docker Desktop users may see a "Permission denied" the first time they
+bind-mount a third-party agent socket. Worked-around in the 1Password
+forum thread [#133105](https://1password.community/discussion/133105).
+This is host environment configuration — the ephemeral launcher just
+passes the path through unchanged.
+
+### Legacy OrbStack fallback
+
+OrbStack's pre-unified-proxy path
+`/opt/orbstack-guest/run/host-ssh-agent.sock` still works if the
+synthesized `/run/host-services/ssh-auth.sock` doesn't cooperate with
+a third-party agent ([orbstack/orbstack#1062](https://github.com/orbstack/orbstack/issues/1062)).
+Set `SSH_AGENT_HOST_SOCK` to it if you hit that case.
+
+### Unit tests
+
+`tests/test-ssh-agent-detect.sh` covers 15 scenarios against a fake
+`$HOME` with real AF_UNIX sockets and a stubbed docker provider detector:
+override precedence, each known-agent path, provider-specific `$SSH_AUTH_SOCK`
+handling, the macOS fallback, and the "no agent found" error case. Run
+from the repo root:
+
+```sh
+bash tests/test-ssh-agent-detect.sh
+```
 
 ### Acceptance checks
 
@@ -254,13 +315,21 @@ Inside a fresh ephemeral session, all three should succeed:
 
 - Shell syntax on all modified scripts (bash `-n`).
 - Compose file validation is unchanged (shared-container path untouched).
-- Code review of the new `run-ephemeral.sh` and `ephemeral-init.sh` against
-  the existing `connect.sh` and `entrypoint.sh` for parity.
+- Unit tests for ssh-agent auto-detection: 20 assertions pass against
+  a fake `$HOME` with real AF_UNIX sockets (`tests/test-ssh-agent-detect.sh`).
+- Unit tests for `EXTRA_VOLUMES` parsing: 11 assertions across empty,
+  single, multiple, whitespace, malformed, and mixed entries
+  (`tests/test-extra-volumes.sh`).
+- Smoke test of `lib/gc.sh` dry-run against fabricated orphan staging
+  dirs: correctly identified both as removable.
+- Live smoke test of `detect_ssh_agent` against the maintainer's host
+  `$SSH_AUTH_SOCK`: returns "SSH_AUTH_SOCK" with the right path.
 
 ## What was NOT tested
 
-Docker was not available in the environment where this prototype was
-assembled. The following end-to-end checks are left for the reviewer:
+Docker was not available in the environment where these phases were
+implemented. The end-to-end checks from issue #11 Phase 0 are left for
+the maintainer to run:
 
 1. Build the image in ephemeral mode (`EPHEMERAL_SESSIONS=true ./run.sh`).
 2. Start two concurrent `be-claude` sessions and confirm they are separate
@@ -269,87 +338,60 @@ assembled. The following end-to-end checks are left for the reviewer:
    run `go get` of a new module in session A, then import it in session B
    without a re-download).
 4. Rebuild the image; confirm the two running sessions are undisturbed.
-5. Start a third session; confirm it uses the new image (e.g. put a marker
-   file in the Dockerfile build and check for its presence only in the
-   third container).
+5. Start a third session; confirm it uses the new image.
 6. Confirm `~/.claude` credential refresh propagates back to the host
    Keychain on macOS after the session exits.
 7. Measure startup latency (`time be-shell echo ok`) on a warm image.
-8. **ssh-agent forwarding**: `ssh-add -L` inside a session returns keys.
+8. **ssh-agent**: `ssh-add -L` inside a session returns host keys.
 9. **git signing**: `git commit --allow-empty -m probe` signs and verifies.
-10. **onward ssh auth**: `ssh -T git@github.com` succeeds without prompting.
+10. **onward ssh**: `ssh -T git@github.com` succeeds without prompting.
+11. `be-attach` drops into a running session's zsh from a second terminal.
+12. `./run.sh gc` reports accurately; `--apply` reclaims idle volumes.
+13. `EXTRA_VOLUMES="rust-target:/.../rust/target"` + `files/init.d/rust-cache.sh`
+    produces a writable cross-session rust/target dir.
+14. `bun --version` works in a fresh session with zero install cost.
 
-All are mechanical and fast; any reviewer with Docker can run them in
-about 15 minutes.
+All are mechanical; ~15 minutes of maintainer time with Docker running.
 
-## Known gaps
+## Phase status vs. ajsutton/claude-docker#11
 
-- **compose.d/ overlays are not ported.** Scope is now smaller than first
-  estimated:
-  - `todo-ui.yml` — **out of scope**; todo-ui is moving to its own
-    standalone Docker container. This also removes the main reason
-    claude-docker ever needed a long-lived container, and makes retiring
-    the shared-container mode tractable.
-  - `bun.yml`, `rust-cache.yml` — both session-scoped; port to
-    `files/init.d/*.sh` (most of the content is already sh fragments).
-- **Stage-dir cleanup in the rare case `be-*` is killed with SIGKILL**
-  leaves `.mount-stage/session-<name>/` behind. A pass in `stop.sh` would
-  handle it.
-- **No GC for the shared volumes.** `docker volume rm` still works; we
-  just don't wrap it.
-- **No `docker exec` convenience wrapper** for attaching a second terminal
-  to an already-running session. `docker exec -it claude-session-<tab>
-  zsh` works but is less ergonomic than `ssh -p 2222 localhost` was.
-- **mosh is not supported** in ephemeral mode. Mosh needs a long-running
-  server; by design these containers are short-lived.
-- **ssh-agent forwarding for third-party agents requires manual config**
-  (`SSH_AGENT_HOST_SOCK`). We default to the launchd path, which covers
-  the common case but not 1Password / Secretive users.
+| Phase | Status | Notes |
+|---|---|---|
+| 0 — validate prototype | **pending** | requires Docker; left for maintainer |
+| 1 — port compose.d overlays | **done** | `EXTRA_VOLUMES` + `files/init.d/` + rust-cache.sh.example |
+| 2 — split todo-ui | **out of scope** | separate repo, separate PR |
+| 3 — bake bun | **done** | Dockerfile + PATH in `.zshenv` |
+| 4 — volume GC + stage-dir reaper | **done** | `./run.sh gc`, `stop.sh` autoreap |
+| 5 — be-attach | **done** | pattern / selection / `-c` modes |
+| 6 — docs | **done** | README + this file |
+| 7 — cutover to default | **deferred** | maintainer wants dogfooding first |
 
-## Estimated effort to productionize
+## Remaining open questions
 
-Rough estimates, assuming "productionize" means this is the default mode
-and the shared-container path goes away. Slightly smaller than the
-original estimate because todo-ui no longer needs porting.
-
-| Work item | Effort |
-|-----------|--------|
-| Run the 10 acceptance tests and fix any runtime bugs | 0.5–1 day |
-| Port `bun.yml` + `rust-cache.yml` to `files/init.d/*.sh` | 0.25 day |
-| Split todo-ui into its own standalone container | 0.5 day |
-| Add bun to the Dockerfile (or the shared volume) | 0.25 day |
-| Add stage-dir GC and a `volume gc` subcommand | 0.5 day |
-| Add a `be-attach` / `be-debug` wrapper around `docker exec` | 0.25 day |
-| Update README + docs + .env.example consolidation | 0.5 day |
-| Decide on rollback plan / remove shared path | 0.25 day |
-| **Total** | **~3 days engineering** |
-
-The todo-ui split is a mostly-separate piece of work but is a prerequisite
-for retiring the shared-container mode, since that's the only remaining
-long-lived-service obligation in claude-docker.
-
-## Open questions
-
-1. Is the **startup latency** actually under the "couple seconds" target?
-   Untested here; depends on host. macOS Docker Desktop is slower than
-   native Linux.
+1. Is **startup latency** actually under 2s on the maintainer's host?
+   Only way to know is measurement. Phase 0 has the command.
 2. Is the **one-shared-user** assumption permanent? If a future use case
    wants per-session users (true sandboxing), the volume-sharing model
    has to be rethought entirely because mise-style UID-sensitive tools
-   will break.
-3. Does the **default ssh-agent path work on the maintainer's host**? If
-   they use 1Password or Secretive (common for OP Labs), the first thing
-   to verify is that `SSH_AGENT_HOST_SOCK=~/.1password/agent.sock` (or
-   equivalent) in `.env` produces working `ssh-add -L` in a session.
+   will break. Not a blocker; flag for the record.
+3. **Mosh replacement.** Mosh is not available in ephemeral mode. If
+   the maintainer uses mosh today (from their current `.env` it looks
+   like `USE_MOSH=false` by default), this isn't a blocker. If they do
+   use it on a flaky connection, we'd need a long-lived-debug-container
+   design — out of scope here.
 
 ## Files touched on this branch
 
-- `Dockerfile` — added `ephemeral-init.sh` copy
-- `run.sh` — branches on `EPHEMERAL_SESSIONS`, builds image only
-- `stop.sh` — branches on `EPHEMERAL_SESSIONS`, stops active sessions
+- `Dockerfile` — `ephemeral-init.sh` copy; bun install
+- `run.sh` — branches on `EPHEMERAL_SESSIONS`; `ssh-agent-check` and `gc` subcommands
+- `stop.sh` — branches on `EPHEMERAL_SESSIONS`; orphan stage-dir reaper
 - `lib/connect.sh` — branches on `EPHEMERAL_SESSIONS` for `run_remote`
-- `lib/run-ephemeral.sh` — new, the docker-run based launcher
-- `files/ephemeral-init.sh` — new, the in-container init script
-- `.env.example` — documented `EPHEMERAL_SESSIONS` and `SSH_AGENT_HOST_SOCK`
-- `README.md` — documented the new mode
-- `docs/ephemeral-sessions.md` — this file
+- `lib/run-ephemeral.sh` — docker-run based launcher; EXTRA_VOLUMES; ssh-agent via lib
+- `lib/ssh-agent-detect.sh` — agent auto-detection
+- `lib/gc.sh` — volume GC driver
+- `files/ephemeral-init.sh` — in-container root-then-user init
+- `files/init.d/README.md`, `.gitignore`, `rust-cache.sh.example` — overlay replacement
+- `files/.zshenv` — bun bin on PATH
+- `be-attach` — docker-exec second-terminal wrapper
+- `tests/test-ssh-agent-detect.sh`, `tests/test-extra-volumes.sh`
+- `.env.example`, `README.md`, `docs/ephemeral-sessions.md`
