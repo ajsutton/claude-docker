@@ -41,6 +41,24 @@ An Ubuntu container runs an SSH server on port 2222. Your code directory is bind
 
 The container comes with Go, Node.js, Rust tooling, [mise](https://mise.run), [gopls](https://pkg.go.dev/golang.org/x/tools/gopls), git, gh, and other common development tools pre-installed.
 
+### Ephemeral per-session containers (experimental)
+
+Set `EPHEMERAL_SESSIONS=true` in `.env` to run a fresh container for every
+`be-claude` / `be-codex` / `be-shell` / `be-exec` invocation, instead of
+SSHing into a shared long-running container. In this mode:
+
+- Each session is fully isolated from every other session.
+- Rebuilding the image (`./run.sh`) does not disturb sessions that are
+  already running — they stay pinned to the image they started from. The
+  next session you start picks up the new image automatically.
+- Build caches (Go module + build cache, Cargo registry, svm, mise
+  installs) are shared across sessions via named Docker volumes.
+- `compose.d/` overlays are not applied, SSH/mosh ports are unused.
+
+See [`docs/ephemeral-sessions.md`](docs/ephemeral-sessions.md) for the full
+design — including the per-tool concurrency analysis of the shared caches
+and the remaining gaps.
+
 ## Usage
 
 ### be-claude / be-codex / be-exec
@@ -88,6 +106,7 @@ All configuration lives in `.env` (gitignored). Copy `.env.example` to get start
 | `CODEX_ARGS` | *(empty)* | Default arguments passed to codex (e.g. `--full-auto`) |
 | `CODEX_SANDBOX` | `danger-full-access` | Codex sandbox mode — bubblewrap can't create namespaces inside Docker, so sandboxed modes require `--privileged` |
 | `EXTRA_PACKAGES` | *(empty)* | Additional apt packages to install in the container (e.g. `postgresql-client redis-tools`) |
+| `EPHEMERAL_SESSIONS` | `false` | Run each be-* invocation in its own container instead of SSHing into a shared one. See [ephemeral-sessions.md](docs/ephemeral-sessions.md). |
 
 ## Credential sync
 

@@ -78,6 +78,11 @@ RUN ARCH=$(uname -m) && \
 # Entrypoint runs as root to set up SSH, then sshd handles user sessions
 COPY files/entrypoint.sh /usr/local/bin/entrypoint.sh
 
+# Ephemeral-session init runs as root to chown named volumes then drops to
+# the app user. Used only when EPHEMERAL_SESSIONS=true (see lib/run-ephemeral.sh).
+COPY files/ephemeral-init.sh /usr/local/bin/ephemeral-init.sh
+RUN chmod +x /usr/local/bin/ephemeral-init.sh
+
 USER $USERNAME
 WORKDIR $CODE_PATH
 
