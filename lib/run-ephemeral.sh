@@ -52,6 +52,46 @@ _ephemeral_container_name() {
     echo "claude-session-$(date +%s)-$$-${rand}"
 }
 
+# Append the right ssh-agent flags to EPH_RUN_ARGS. Emits a warning if no
+# agent is reachable so the user notices before the container starts and
+# git operations fail mysteriously.
+#
+# Priority order:
+#   1. SSH_AGENT_HOST_SOCK in .env (explicit override, always wins)
+#   2. On macOS: /run/host-services/ssh-auth.sock (synthesized by both
+#      Docker Desktop and OrbStack; works for the default launchd agent)
+#   3. On Linux: $SSH_AUTH_SOCK bind-mounted directly
+#
+# The in-container socket path is always /ssh-agent (chosen by us, not by
+# the platform). The container's $SSH_AUTH_SOCK points there.
+_configure_ssh_agent_forwarding() {
+    local host_sock container_sock="/ssh-agent"
+
+    if [[ -n "${SSH_AGENT_HOST_SOCK:-}" ]]; then
+        host_sock="$SSH_AGENT_HOST_SOCK"
+    elif [[ "$(uname -s)" == "Darwin" ]]; then
+        # Docker Desktop and OrbStack both synthesize this path. Works for
+        # the macOS default launchd ssh-agent. For 1Password / Secretive /
+        # other third-party agents the user must set SSH_AGENT_HOST_SOCK
+        # explicitly (see docs/ephemeral-sessions.md).
+        host_sock="/run/host-services/ssh-auth.sock"
+    elif [[ -n "${SSH_AUTH_SOCK:-}" ]] && [[ -S "$SSH_AUTH_SOCK" ]]; then
+        host_sock="$SSH_AUTH_SOCK"
+    fi
+
+    if [[ -z "${host_sock:-}" ]]; then
+        echo "Warning: no ssh-agent detected. git push over ssh and commit signing" >&2
+        echo "         will not work inside the session. Set SSH_AGENT_HOST_SOCK in" >&2
+        echo "         .env or start an ssh-agent on the host." >&2
+        return
+    fi
+
+    EPH_RUN_ARGS+=(
+        -v "${host_sock}:${container_sock}"
+        -e "SSH_AUTH_SOCK=${container_sock}"
+    )
+}
+
 # Populate EPH_RUN_ARGS and EPH_STAGE_DIR from the current environment.
 # EPH_CONTAINER_NAME must already be set.
 _build_ephemeral_run_args() {
@@ -104,13 +144,20 @@ _build_ephemeral_run_args() {
         EPH_RUN_ARGS+=(-e "FORWARD_${key}=${!key}")
     done
 
-    # SSH agent forwarding via a mounted socket. This replaces `ssh -A`.
-    if [[ -n "${SSH_AUTH_SOCK:-}" ]] && [[ -S "$SSH_AUTH_SOCK" ]]; then
-        EPH_RUN_ARGS+=(
-            -v "${SSH_AUTH_SOCK}:/ssh-agent"
-            -e "SSH_AUTH_SOCK=/ssh-agent"
-        )
-    fi
+    # SSH agent forwarding. Replaces `ssh -A` from the shared-container path.
+    # Needed for: onward SSH (e.g. git push over ssh://) and container-side
+    # git commit signing (see files/setupGitSigning.sh, which reads the first
+    # key from `ssh-add -L`).
+    #
+    # Platform detection:
+    #   Linux host          -> bind-mount $SSH_AUTH_SOCK directly
+    #   Docker Desktop/macOS-> use the synthesized /run/host-services/ssh-auth.sock
+    #   OrbStack/macOS      -> same synthesized path (docs.orbstack.dev/docker/)
+    # The user can override with SSH_AGENT_HOST_SOCK in .env, e.g. to point
+    # at 1Password's agent socket or the OrbStack legacy path
+    # /opt/orbstack-guest/run/host-ssh-agent.sock for third-party agents.
+    _configure_ssh_agent_forwarding
+
 
     # Optional bind mounts, mirroring compose-files.sh.
     if [ -f "$HOME/.gitconfig" ]; then
