@@ -1,0 +1,97 @@
+#!/bin/bash
+# be-attach — drop into a running ephemeral claude-session container.
+#
+# The ephemeral mode loses the `ssh localhost -p 2222` second-terminal
+# debug path. This wrapper replaces it with `docker exec -it <id> zsh`.
+#
+# No args: if exactly one claude-session-* is running, attach to it.
+#          If multiple, print a numbered list and prompt for selection.
+#          If none, print a clear message and exit 1.
+# One arg: a name / partial-name / container id. Attaches to the match
+#          if unique, otherwise prints the candidates.
+#
+# Use `-c <command>` to run a one-shot command instead of an interactive
+# shell (e.g. `be-attach -c "ps aux"`).
+
+set -euo pipefail
+
+if ! command -v docker >/dev/null 2>&1; then
+    echo "be-attach: docker not found on PATH" >&2
+    exit 127
+fi
+
+COMMAND="zsh"
+if [ "${1:-}" = "-c" ]; then
+    shift
+    [ $# -ge 1 ] || { echo "be-attach: -c needs a command" >&2; exit 2; }
+    COMMAND="$1"
+    shift
+fi
+
+_list_sessions() {
+    # Columns: ID  NAME  CMD  STARTED  STATUS
+    docker ps --filter "name=^claude-session-" \
+        --format '{{.ID}}\t{{.Names}}\t{{.Command}}\t{{.RunningFor}}\t{{.Status}}' \
+        2>/dev/null
+}
+
+_attach() {
+    local id="$1"
+    echo "Attaching to $id (${COMMAND})..." >&2
+    exec docker exec -it "$id" "$COMMAND"
+}
+
+sessions="$(_list_sessions)"
+count="$(printf '%s\n' "$sessions" | grep -c . || true)"
+
+# Filter by pattern if one was provided.
+if [ "${1:-}" != "" ]; then
+    pattern="$1"
+    filtered="$(printf '%s\n' "$sessions" | awk -v p="$pattern" '$0 ~ p')"
+    if [ -z "$filtered" ]; then
+        echo "be-attach: no session matches '$pattern'." >&2
+        [ "$count" -gt 0 ] && {
+            echo "Running sessions:" >&2
+            printf '%s\n' "$sessions" | awk -F'\t' '{printf "  %s  %s\n", $1, $2}' >&2
+        }
+        exit 1
+    fi
+    matches="$(printf '%s\n' "$filtered" | grep -c . )"
+    if [ "$matches" -gt 1 ]; then
+        echo "be-attach: '$pattern' matches $matches sessions:" >&2
+        printf '%s\n' "$filtered" | awk -F'\t' '{printf "  %s  %s\n", $1, $2}' >&2
+        exit 1
+    fi
+    id="$(printf '%s\n' "$filtered" | awk -F'\t' 'NR==1 {print $1}')"
+    _attach "$id"
+fi
+
+# No pattern: pick automatically or prompt.
+if [ "$count" -eq 0 ]; then
+    echo "No ephemeral sessions running." >&2
+    echo "Start one with be-claude / be-codex / be-shell, then re-run be-attach." >&2
+    exit 1
+fi
+
+if [ "$count" -eq 1 ]; then
+    id="$(printf '%s\n' "$sessions" | awk -F'\t' 'NR==1 {print $1}')"
+    _attach "$id"
+fi
+
+# Multiple sessions — prompt.
+echo "Multiple sessions running. Select one:"
+i=0
+declare -a ids
+while IFS=$'\t' read -r id name cmd started status; do
+    i=$((i + 1))
+    ids+=("$id")
+    printf '  [%d] %-30s %-20s %s\n' "$i" "$name" "$started" "$status"
+done <<<"$sessions"
+
+printf 'Selection [1-%d]: ' "$i"
+read -r choice
+if ! [[ "$choice" =~ ^[0-9]+$ ]] || [ "$choice" -lt 1 ] || [ "$choice" -gt "$i" ]; then
+    echo "be-attach: invalid selection" >&2
+    exit 1
+fi
+_attach "${ids[$((choice - 1))]}"
