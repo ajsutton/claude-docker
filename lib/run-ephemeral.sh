@@ -16,6 +16,10 @@
 
 set -euo pipefail
 
+# Auto-detection of the host ssh-agent socket lives in a separate lib so
+# it's easy to test in isolation. See lib/ssh-agent-detect.sh.
+source "$SCRIPT_DIR/lib/ssh-agent-detect.sh"
+
 # The image tag built by ./run.sh in ephemeral mode.
 EPHEMERAL_IMAGE="${EPHEMERAL_IMAGE:-claude-docker:latest}"
 
@@ -52,44 +56,28 @@ _ephemeral_container_name() {
     echo "claude-session-$(date +%s)-$$-${rand}"
 }
 
-# Append the right ssh-agent flags to EPH_RUN_ARGS. Emits a warning if no
-# agent is reachable so the user notices before the container starts and
-# git operations fail mysteriously.
-#
-# Priority order:
-#   1. SSH_AGENT_HOST_SOCK in .env (explicit override, always wins)
-#   2. On macOS: /run/host-services/ssh-auth.sock (synthesized by both
-#      Docker Desktop and OrbStack; works for the default launchd agent)
-#   3. On Linux: $SSH_AUTH_SOCK bind-mounted directly
-#
-# The in-container socket path is always /ssh-agent (chosen by us, not by
-# the platform). The container's $SSH_AUTH_SOCK points there.
+# Append the right ssh-agent flags to EPH_RUN_ARGS via lib/ssh-agent-detect.sh.
+# Announces which agent was selected so the user sees it before the session
+# starts. Emits a clear warning with the full list of supported agents if
+# detection fails, so the fix is obvious.
 _configure_ssh_agent_forwarding() {
-    local host_sock container_sock="/ssh-agent"
+    local container_sock="/ssh-agent"
+    local result label host_sock
 
-    if [[ -n "${SSH_AGENT_HOST_SOCK:-}" ]]; then
-        host_sock="$SSH_AGENT_HOST_SOCK"
-    elif [[ "$(uname -s)" == "Darwin" ]]; then
-        # Docker Desktop and OrbStack both synthesize this path. Works for
-        # the macOS default launchd ssh-agent. For 1Password / Secretive /
-        # other third-party agents the user must set SSH_AGENT_HOST_SOCK
-        # explicitly (see docs/ephemeral-sessions.md).
-        host_sock="/run/host-services/ssh-auth.sock"
-    elif [[ -n "${SSH_AUTH_SOCK:-}" ]] && [[ -S "$SSH_AUTH_SOCK" ]]; then
-        host_sock="$SSH_AUTH_SOCK"
-    fi
-
-    if [[ -z "${host_sock:-}" ]]; then
-        echo "Warning: no ssh-agent detected. git push over ssh and commit signing" >&2
-        echo "         will not work inside the session. Set SSH_AGENT_HOST_SOCK in" >&2
-        echo "         .env or start an ssh-agent on the host." >&2
+    if result="$(detect_ssh_agent)"; then
+        label="${result%%	*}"
+        host_sock="${result#*	}"
+        echo "[claude-docker] ssh-agent: $label ($host_sock)" >&2
+        EPH_RUN_ARGS+=(
+            -v "${host_sock}:${container_sock}"
+            -e "SSH_AUTH_SOCK=${container_sock}"
+        )
         return
     fi
 
-    EPH_RUN_ARGS+=(
-        -v "${host_sock}:${container_sock}"
-        -e "SSH_AUTH_SOCK=${container_sock}"
-    )
+    echo "Warning: no ssh-agent detected. git push over ssh and commit" >&2
+    echo "         signing will not work inside the session." >&2
+    describe_ssh_agent_options >&2
 }
 
 # Populate EPH_RUN_ARGS and EPH_STAGE_DIR from the current environment.

@@ -9,6 +9,55 @@ if [ -f "$SCRIPT_DIR/.env" ]; then
     source "$SCRIPT_DIR/.env"
 fi
 
+usage() {
+    cat <<'USAGE'
+Usage: ./run.sh [subcommand]
+
+With no subcommand: build the image (ephemeral mode) or build-and-start
+the shared container (legacy mode), depending on EPHEMERAL_SESSIONS.
+
+Subcommands:
+  ssh-agent-check    Print which host ssh-agent the ephemeral launcher
+                     would pick. Useful for debugging 1Password / Secretive
+                     / KeePassXC setups. No container is started.
+  gc [--apply]       Garbage-collect stale session staging dirs and report
+                     reclaimable named-volume space. Default is dry-run;
+                     pass --apply to actually remove volumes.
+  help               This message.
+USAGE
+}
+
+case "${1:-}" in
+    help|-h|--help)
+        usage
+        exit 0
+        ;;
+    ssh-agent-check)
+        source "$SCRIPT_DIR/lib/ssh-agent-detect.sh"
+        if result="$(detect_ssh_agent)"; then
+            label="${result%%	*}"
+            path="${result#*	}"
+            echo "Selected: $label"
+            echo "Path:     $path"
+            echo ""
+            echo "This is the socket that be-claude / be-codex / be-shell will"
+            echo "bind into /ssh-agent in the container, with SSH_AUTH_SOCK set"
+            echo "to /ssh-agent. Inside a session, 'ssh-add -L' should list"
+            echo "your keys."
+        else
+            echo "No ssh-agent socket found." >&2
+            describe_ssh_agent_options >&2
+            exit 1
+        fi
+        exit 0
+        ;;
+    gc)
+        shift
+        "$SCRIPT_DIR/lib/gc.sh" "$@"
+        exit $?
+        ;;
+esac
+
 # Validate CODE_PATH
 if [ -z "${CODE_PATH:-}" ]; then
     echo "Error: CODE_PATH is not set. Set it in .env to the directory you want mounted in the container." >&2
