@@ -103,3 +103,9 @@ RUN curl https://mise.run | sh && \
 # Install Claude Code (native install, auto-updates in background)
 RUN curl -fsSL https://claude.ai/install.sh | bash
 
+# Install bun. Previously this was the compose.d/bun.init.sh overlay which
+# re-ran on every shared-container start; baking it into the image means
+# zero per-session cost in ephemeral mode too. The install.sh script drops
+# the binary into ~/.bun/bin and is PATH'd via files/.zshenv.
+RUN curl -fsSL https://bun.sh/install | bash
+
