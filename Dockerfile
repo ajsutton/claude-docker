@@ -3,7 +3,7 @@ FROM ubuntu:latest
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     git curl zsh fzf ripgrep make \
     iptables ipset iproute2 dnsutils \
-    openssh-server jq vim gh golang gpg python3.12-venv \
+    openssh-server jq vim gh golang gpg python3-venv \
     ca-certificates tmux mosh libclang-dev libssl-dev lld \
     tzdata
 
@@ -27,7 +27,7 @@ ARG EXTRA_NPM_PACKAGES=""
 RUN if [ -n "$EXTRA_NPM_PACKAGES" ]; then npm install -g $EXTRA_NPM_PACKAGES; fi
 
 # SSH setup
-RUN mkdir /var/run/sshd && \
+RUN mkdir -p /var/run/sshd && \
     cp -r /etc/ssh /etc/ssh.original && \
     echo 'AcceptEnv ITERM_SESSION_ID FORWARD_*' >> /etc/ssh/sshd_config && \
     echo 'AcceptEnv ITERM_SESSION_ID FORWARD_*' >> /etc/ssh.original/sshd_config
