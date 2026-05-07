@@ -44,18 +44,24 @@ done
 ssh_port="${SSH_PORT:-2222}"
 mosh_port="${MOSH_PORT:-60001}"
 
+ssh_extra_opts=()
+if [[ -n "${SSH_EXTRA_OPTS:-}" ]]; then
+    # Word-split SSH_EXTRA_OPTS so users can pass multiple "-o key=value" pairs.
+    read -ra ssh_extra_opts <<<"$SSH_EXTRA_OPTS"
+fi
+
 # run_remote <remote_command>
 # Connects via mosh or ssh and runs the given command.
 run_remote() {
     local remote_cmd="${prep}$1"
     local exit_code=0
 
-    local ssh_cmd="ssh -p ${ssh_port} ${send_env_opts[*]} ${iterm_opts[*]}"
+    local ssh_cmd="ssh -p ${ssh_port} ${ssh_extra_opts[*]} ${send_env_opts[*]} ${iterm_opts[*]}"
 
     if [[ "${USE_MOSH:-false}" == "true" ]] && command -v mosh &>/dev/null; then
         mosh --ssh="$ssh_cmd" -p "$mosh_port" localhost -- zsh -c "$remote_cmd" || exit_code=$?
     else
-        ssh -A -t -p "${ssh_port}" ${send_env_opts[@]+"${send_env_opts[@]}"} ${iterm_opts[@]+"${iterm_opts[@]}"} localhost "$remote_cmd" || exit_code=$?
+        ssh -A -t -p "${ssh_port}" ${ssh_extra_opts[@]+"${ssh_extra_opts[@]}"} ${send_env_opts[@]+"${send_env_opts[@]}"} ${iterm_opts[@]+"${iterm_opts[@]}"} localhost "$remote_cmd" || exit_code=$?
     fi
 
     # Post-session: reconcile any token refresh done inside the container back
