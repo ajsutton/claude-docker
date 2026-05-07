@@ -1,9 +1,10 @@
-FROM ubuntu:latest
+ARG UBUNTU_VERSION=latest
+FROM ubuntu:${UBUNTU_VERSION}
 
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     git curl zsh fzf ripgrep make \
     iptables ipset iproute2 dnsutils \
-    openssh-server jq vim gh golang gpg python3.12-venv \
+    openssh-server jq vim gh golang gpg python3-venv \
     ca-certificates tmux mosh libclang-dev libssl-dev lld \
     tzdata
 
@@ -66,6 +67,14 @@ RUN for util in imgcat imgls it2api it2attention it2cat it2check it2copy it2dl i
             -o "/usr/local/bin/$util" && \
         chmod +x "/usr/local/bin/$util"; \
     done
+
+# Install sccache (compiler cache with LRU size cap, wraps rustc via RUSTC_WRAPPER)
+RUN ARCH=$(uname -m) && \
+    if [ "$ARCH" = "x86_64" ]; then TARGET="x86_64-unknown-linux-musl"; \
+    else TARGET="aarch64-unknown-linux-musl"; fi && \
+    VERSION=$(curl -fsSL https://api.github.com/repos/mozilla/sccache/releases/latest | jq -r .tag_name) && \
+    curl -fsSL "https://github.com/mozilla/sccache/releases/download/${VERSION}/sccache-${VERSION}-${TARGET}.tar.gz" \
+    | tar xz --strip-components=1 -C /usr/local/bin "sccache-${VERSION}-${TARGET}/sccache"
 
 # Install tuicr
 RUN ARCH=$(uname -m) && \
