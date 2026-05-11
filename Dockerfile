@@ -4,9 +4,18 @@ FROM ubuntu:${UBUNTU_VERSION}
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     git curl zsh fzf ripgrep make \
     iptables ipset iproute2 dnsutils \
-    openssh-server jq vim gh golang gpg python3-venv \
+    openssh-server jq vim golang gpg python3-venv \
     ca-certificates tmux mosh libclang-dev libssl-dev lld \
     tzdata
+
+# Install gh from GitHub's official apt repo (Ubuntu's package is frozen at 2.45.0)
+RUN mkdir -p -m 755 /etc/apt/keyrings && \
+    curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+        | tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null && \
+    chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg && \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+        > /etc/apt/sources.list.d/github-cli.list && \
+    apt-get update && apt-get install -y gh
 
 # Install additional apt packages specified by the user
 ARG EXTRA_PACKAGES=""
