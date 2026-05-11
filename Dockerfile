@@ -2,7 +2,7 @@ ARG UBUNTU_VERSION=latest
 FROM ubuntu:${UBUNTU_VERSION}
 
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
-    git curl zsh fzf ripgrep make \
+    git curl zsh fzf ripgrep make zip unzip \
     iptables ipset iproute2 dnsutils \
     openssh-server jq vim golang gpg python3-venv \
     ca-certificates tmux mosh libclang-dev libssl-dev lld \
