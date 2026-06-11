@@ -29,8 +29,8 @@ RUN update-ca-certificates
 RUN curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - && \
     apt-get install -y nodejs
 
-# Install diff-so-fancy and Codex CLI globally
-RUN npm install -g diff-so-fancy @openai/codex
+# Install root-owned npm tools that do not need to self-update.
+RUN npm install -g diff-so-fancy
 
 # Install additional npm packages specified by the user
 ARG EXTRA_NPM_PACKAGES=""
@@ -99,6 +99,11 @@ COPY files/entrypoint.sh /usr/local/bin/entrypoint.sh
 USER $USERNAME
 WORKDIR $CODE_PATH
 
+# Install Codex in a user-owned npm prefix so CLI self-updates can write to it.
+RUN mkdir -p ${USER_HOME}/.local && \
+    npm config set prefix ${USER_HOME}/.local && \
+    npm install -g @openai/codex
+
 RUN go install golang.org/x/tools/gopls@latest
 
 # Configure cargo to use lld linker on Linux. GNU ld processes static libraries
@@ -115,4 +120,3 @@ RUN curl https://mise.run | sh && \
 
 # Install Claude Code (native install, auto-updates in background)
 RUN curl -fsSL https://claude.ai/install.sh | bash
-
