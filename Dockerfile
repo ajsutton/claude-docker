@@ -6,7 +6,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     iptables ipset iproute2 dnsutils \
     openssh-server jq vim golang gpg python3-venv \
     ca-certificates tmux mosh libclang-dev libssl-dev lld \
-    tzdata
+    tzdata xz-utils
 
 # Install gh from GitHub's official apt repo (Ubuntu's package is frozen at 2.45.0)
 RUN mkdir -p -m 755 /etc/apt/keyrings && \
@@ -57,6 +57,7 @@ COPY --chown=${USERNAME}:${USERNAME} files/.zshrc ${USER_HOME}/.zshrc
 RUN mkdir -p ${USER_HOME}/.zshrc.d && \
     chown ${USERNAME}:${USERNAME} ${USER_HOME}/.zshrc.d
 COPY --chown=${USERNAME}:${USERNAME} files/00-forward-env.sh ${USER_HOME}/.zshrc.d/00-forward-env.sh
+COPY --chown=${USERNAME}:${USERNAME} files/10-worktrunk.sh ${USER_HOME}/.zshrc.d/10-worktrunk.sh
 COPY --chown=${USERNAME}:${USERNAME} files/setupGitSigning.sh ${USER_HOME}/.zshrc.d/setupGitSigning.sh
 
 # Setup SSH authorized_keys from build arg
@@ -92,6 +93,18 @@ RUN ARCH=$(uname -m) && \
     VERSION=$(curl -fsSL https://api.github.com/repos/agavra/tuicr/releases/latest | jq -r .tag_name) && \
     curl -fsSL "https://github.com/agavra/tuicr/releases/download/${VERSION}/tuicr-${VERSION#v}-${TARGET}.tar.gz" \
     | tar xz -C /usr/local/bin tuicr
+
+# Install Worktrunk
+RUN ARCH=$(uname -m) && \
+    case "$ARCH" in \
+        x86_64) TARGET="x86_64-unknown-linux-musl" ;; \
+        aarch64|arm64) TARGET="aarch64-unknown-linux-musl" ;; \
+        *) echo "Unsupported architecture: $ARCH" >&2; exit 1 ;; \
+    esac && \
+    VERSION=$(curl -fsSL https://api.github.com/repos/max-sixty/worktrunk/releases/latest | jq -r .tag_name) && \
+    curl -fsSL "https://github.com/max-sixty/worktrunk/releases/download/${VERSION}/worktrunk-${TARGET}.tar.xz" \
+    | tar xJ -C /usr/local/bin wt git-wt && \
+    chmod +x /usr/local/bin/wt /usr/local/bin/git-wt
 
 # Entrypoint runs as root to set up SSH, then sshd handles user sessions
 COPY files/entrypoint.sh /usr/local/bin/entrypoint.sh

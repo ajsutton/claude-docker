@@ -146,6 +146,7 @@ The `certs/` directory is gitignored so certificates stay local.
 | `~/.claude` | `~/.claude` | read/write |
 | `~/.claude.json` | `~/.claude.json` | read/write |
 | `~/.codex` | `~/.codex` | read/write |
+| `~/.config/worktrunk` | `~/.config/worktrunk` | read/write |
 | `~/.gitconfig` | `~/.gitconfig` | read-only |
 | `~/.gitignore` | `~/.gitignore` | read-only |
 | `~/.local/state/mise/trusted-configs` | `~/.local/state/mise/host-trusted-configs` | read-only |
@@ -171,7 +172,7 @@ Environment variables redirect tool caches into `~/.cache` so a single volume co
 
 ## Pre-installed tools
 
-git, gh, go, gopls, node, npm, [codex](https://github.com/openai/codex), mise, mosh, tmux, vim, zsh, fzf, ripgrep, diff-so-fancy, jq, make, gpg, [tuicr](https://github.com/agavra/tuicr), iTerm2 utilities
+git, gh, go, gopls, node, npm, [codex](https://github.com/openai/codex), mise, mosh, tmux, vim, zsh, fzf, ripgrep, diff-so-fancy, jq, make, gpg, [tuicr](https://github.com/agavra/tuicr), [Worktrunk](https://github.com/max-sixty/worktrunk), iTerm2 utilities
 
 ## SSH agent forwarding
 

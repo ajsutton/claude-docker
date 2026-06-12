@@ -1,0 +1,8 @@
+services:
+  claude-dev:
+    volumes:
+      - type: bind
+        source: ${HOME}/.config/worktrunk
+        target: ${HOME}/.config/worktrunk
+        bind:
+          create_host_path: false

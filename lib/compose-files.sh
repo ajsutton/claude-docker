@@ -41,6 +41,7 @@ build_compose_file_args() {
         COMPOSE_FILE_ARGS+=(-f modules/gitignore.yml)
     fi
     [ -d "$HOME/.local/state/mise" ] && COMPOSE_FILE_ARGS+=(-f modules/mise.yml)
+    [ -d "$HOME/.config/worktrunk" ] && COMPOSE_FILE_ARGS+=(-f modules/worktrunk.yml)
 
     # Codex CLI config: create the directory if it doesn't exist so Docker
     # doesn't create it as root on first mount.
