@@ -17,6 +17,9 @@ RUN mkdir -p -m 755 /etc/apt/keyrings && \
         > /etc/apt/sources.list.d/github-cli.list && \
     apt-get update && apt-get install -y gh
 
+# Install CircleCI CLI
+RUN curl -fLSs https://raw.githubusercontent.com/CircleCI-Public/circleci-cli/main/install.sh | bash
+
 # Install additional apt packages specified by the user
 ARG EXTRA_PACKAGES=""
 RUN if [ -n "$EXTRA_PACKAGES" ]; then apt-get install -y $EXTRA_PACKAGES; fi
@@ -103,7 +106,7 @@ RUN ARCH=$(uname -m) && \
     esac && \
     VERSION=$(curl -fsSL https://api.github.com/repos/max-sixty/worktrunk/releases/latest | jq -r .tag_name) && \
     curl -fsSL "https://github.com/max-sixty/worktrunk/releases/download/${VERSION}/worktrunk-${TARGET}.tar.xz" \
-    | tar xJ -C /usr/local/bin wt git-wt && \
+    | tar xJ --strip-components=1 -C /usr/local/bin "worktrunk-${TARGET}/wt" "worktrunk-${TARGET}/git-wt" && \
     chmod +x /usr/local/bin/wt /usr/local/bin/git-wt
 
 # Entrypoint runs as root to set up SSH, then sshd handles user sessions

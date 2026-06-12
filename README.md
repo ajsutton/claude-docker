@@ -39,7 +39,7 @@ Both agents will read the same instructions.
 
 An Ubuntu container runs an SSH server on port 2222. Your code directory is bind-mounted at the same path inside the container, so file references are identical on both sides. `be-claude` connects via SSH (or mosh if enabled) and starts Claude in the directory matching your current working directory on the host.
 
-The container comes with Go, Node.js, Rust tooling, [mise](https://mise.run), [gopls](https://pkg.go.dev/golang.org/x/tools/gopls), git, gh, and other common development tools pre-installed.
+The container comes with Go, Node.js, Rust tooling, [mise](https://mise.run), [gopls](https://pkg.go.dev/golang.org/x/tools/gopls), git, gh, circleci, and other common development tools pre-installed.
 
 ## Usage
 
@@ -172,7 +172,7 @@ Environment variables redirect tool caches into `~/.cache` so a single volume co
 
 ## Pre-installed tools
 
-git, gh, go, gopls, node, npm, [codex](https://github.com/openai/codex), mise, mosh, tmux, vim, zsh, fzf, ripgrep, diff-so-fancy, jq, make, gpg, [tuicr](https://github.com/agavra/tuicr), [Worktrunk](https://github.com/max-sixty/worktrunk), iTerm2 utilities
+git, gh, [circleci](https://circleci.com/docs/guides/toolkit/local-cli/), go, gopls, node, npm, [codex](https://github.com/openai/codex), mise, mosh, tmux, vim, zsh, fzf, ripgrep, diff-so-fancy, jq, make, gpg, [tuicr](https://github.com/agavra/tuicr), [Worktrunk](https://github.com/max-sixty/worktrunk), iTerm2 utilities
 
 ## SSH agent forwarding
 
