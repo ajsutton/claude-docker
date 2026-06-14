@@ -43,6 +43,11 @@ build_compose_file_args() {
     [ -d "$HOME/.local/state/mise" ] && COMPOSE_FILE_ARGS+=(-f modules/mise.yml)
     [ -d "$HOME/.config/worktrunk" ] && COMPOSE_FILE_ARGS+=(-f modules/worktrunk.yml)
 
+    # iron-proxy egress firewall / secret broker (opt-in via IRON_PROXY in .env)
+    case "$(printf '%s' "${IRON_PROXY:-}" | tr '[:upper:]' '[:lower:]')" in
+        1|true|yes|on) COMPOSE_FILE_ARGS+=(-f modules/iron-proxy.yml) ;;
+    esac
+
     # Codex CLI config: create the directory if it doesn't exist so Docker
     # doesn't create it as root on first mount.
     mkdir -p "$HOME/.codex"

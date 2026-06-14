@@ -61,6 +61,7 @@ RUN mkdir -p ${USER_HOME}/.zshrc.d && \
     chown ${USERNAME}:${USERNAME} ${USER_HOME}/.zshrc.d
 COPY --chown=${USERNAME}:${USERNAME} files/00-forward-env.sh ${USER_HOME}/.zshrc.d/00-forward-env.sh
 COPY --chown=${USERNAME}:${USERNAME} files/10-worktrunk.sh ${USER_HOME}/.zshrc.d/10-worktrunk.sh
+COPY --chown=${USERNAME}:${USERNAME} files/20-iron-proxy.sh ${USER_HOME}/.zshrc.d/20-iron-proxy.sh
 COPY --chown=${USERNAME}:${USERNAME} files/setupGitSigning.sh ${USER_HOME}/.zshrc.d/setupGitSigning.sh
 
 # Setup SSH authorized_keys from build arg

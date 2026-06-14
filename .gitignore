@@ -5,3 +5,7 @@
 /compose.d/*
 !/compose.d/.gitkeep
 .mount-stage/
+# iron-proxy: live config and generated CA stay local (the .example is tracked)
+/iron-proxy/proxy.yaml
+/iron-proxy/certs/*
+!/iron-proxy/certs/.gitkeep

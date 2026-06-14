@@ -1,0 +1,50 @@
+# iron-proxy egress firewall + secret broker.
+#
+# Included by run.sh only when IRON_PROXY is truthy in .env. Real secrets live
+# only in the iron-proxy container; the claude-dev container points its DNS at
+# the proxy, trusts the proxy CA, and uses placeholder tokens.
+services:
+  iron-proxy:
+    image: ironsh/iron-proxy:latest
+    container_name: ${COMPOSE_PROJECT_NAME:-claude-dev}-iron-proxy
+    command: ["-config", "/etc/iron-proxy/proxy.yaml"]
+    # Real secrets, captured once by run.sh from the host (.env) and passed in
+    # here. These never reach the claude-dev container. Add more by listing them
+    # in IRON_PROXY_SECRETS (.env) and adding a line here + a rule in proxy.yaml.
+    environment:
+      - GH_TOKEN=${GH_TOKEN:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+    volumes:
+      - ./iron-proxy/proxy.yaml:/etc/iron-proxy/proxy.yaml:ro
+      - ./iron-proxy/certs/ca.crt:/certs/ca.crt:ro
+      - ./iron-proxy/certs/ca.key:/certs/ca.key:ro
+    networks:
+      iron-net:
+        ipv4_address: 172.30.0.2
+    restart: always
+
+  claude-dev:
+    depends_on:
+      - iron-proxy
+    # Route all DNS through the proxy so it can intercept (and the passthrough
+    # list in proxy.yaml decides what bypasses it).
+    dns:
+      - 172.30.0.2
+    environment:
+      # Tells entrypoint.sh to install the proxy CA and export placeholder
+      # tokens / CA env vars for every shell.
+      - IRON_PROXY=1
+    volumes:
+      # update-ca-certificates picks this up at startup (see entrypoint.sh).
+      - ./iron-proxy/certs/ca.crt:/usr/local/share/ca-certificates/iron-proxy-ca.crt:ro
+    networks:
+      - default
+      - iron-net
+
+networks:
+  iron-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24

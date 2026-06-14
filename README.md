@@ -85,6 +85,8 @@ All configuration lives in `.env` (gitignored). Copy `.env.example` to get start
 | `CLAUDE_ARGS` | *(empty)* | Default arguments passed to claude (e.g. `--dangerously-skip-permissions`) |
 | `FORWARD_ENVS` | *(empty)* | Space-separated list of env var names to forward into the container |
 | `CLAUDE_CREDENTIAL_SYNC` | `true` | Set to `false` to disable automatic credential sync (see below) |
+| `IRON_PROXY` | `false` | Set to `true` to route egress through an [iron-proxy](https://github.com/ironsh/iron-proxy) sidecar that holds your real tokens (see [Holding secrets in iron-proxy](#holding-secrets-in-iron-proxy)) |
+| `IRON_PROXY_SECRETS` | `GH_TOKEN` | Space-separated env var names to capture from the host and hand to the proxy |
 | `CODEX_ARGS` | *(empty)* | Default arguments passed to codex (e.g. `--full-auto`) |
 | `CODEX_SANDBOX` | `danger-full-access` | Codex sandbox mode — bubblewrap can't create namespaces inside Docker, so sandboxed modes require `--privileged` |
 | `EXTRA_PACKAGES` | *(empty)* | Additional apt packages to install in the container (e.g. `postgresql-client redis-tools`) |
@@ -101,6 +103,73 @@ Claude Code authenticates via OAuth. On macOS, logging in through Claude Desktop
 On non-macOS hosts, the credentials file (`~/.claude/.credentials.json`) is the single source of truth — the container reads and writes it directly via bind mount.
 
 To disable syncing, set `CLAUDE_CREDENTIAL_SYNC=false` in `.env`.
+
+## Holding secrets in iron-proxy
+
+By default the container holds your real credentials directly — a GitHub token in
+its environment, OAuth tokens on the bind mount. The optional [iron-proxy](https://github.com/ironsh/iron-proxy)
+integration moves those secrets *out* of the container: the proxy holds the real
+values, the container only ever sees a harmless placeholder, and the proxy swaps
+the placeholder for the real secret at the network edge. A leaked container
+filesystem or a rogue process inside it yields placeholders, not credentials.
+
+It's off by default. Enable it in `.env`:
+
+```sh
+IRON_PROXY=true
+FORWARD_ENVS=""                 # stop forwarding the real GH_TOKEN into the box
+GH_TOKEN=$(gh auth token)       # still evaluated on the host; handed to the proxy
+```
+
+Then `./run.sh`. On first run this generates a CA in `iron-proxy/certs/` and
+copies `iron-proxy/proxy.example.yaml` to `iron-proxy/proxy.yaml` (both
+gitignored, so local edits and keys stay local).
+
+### How it works
+
+`./run.sh` starts a second container (`iron-proxy`) on a private Docker network
+and points the AI container's DNS at it. Every hostname then resolves to the
+proxy, which terminates TLS using a CA the container trusts and runs each request
+through a pipeline:
+
+- **Secret injection.** The container's `GH_TOKEN` is the placeholder
+  `proxy-gh-token`. When `gh` or the GitHub API calls `api.github.com`, the proxy
+  replaces it with the real token (sourced from its own environment, captured
+  once from the host at startup). The real token never enters the AI container.
+- **Egress policy.** Unrestricted by default — the allowlist runs in `warn: true`
+  mode, logging every request but blocking nothing. To restrict egress, set
+  `warn: false` in `iron-proxy/proxy.yaml` and list the hosts to allow.
+
+Because the real secret lives in the proxy for the whole container lifetime and
+the placeholder is a static value exported into every shell, tokens are
+available to background processes too — not just to the SSH session that set
+them.
+
+### What stays on the ssh-agent
+
+git push/fetch over SSH and commit signing still use your **forwarded ssh-agent**,
+so this works even when the agent is held by 1Password (which never exports the
+private key — signing *has* to talk to the agent). `github.com` is in the proxy's
+`passthrough` list so SSH traffic bypasses the proxy; only the GitHub *API* host
+is intercepted for token injection. GPG commit signing is unaffected (it's local,
+no network).
+
+### Subscription OAuth vs API keys
+
+Claude Code and Codex subscription OAuth tokens refresh client-side and aren't
+static, so they can't be hidden behind a placeholder the same way. Their API
+hosts (`*.anthropic.com`, `*.openai.com`, …) are passed through by default so the
+agents keep working and their tokens are never intercepted; the OAuth creds
+remain on the bind mount as before. If instead you authenticate with **API keys**,
+the proxy can hold those too — list them in `IRON_PROXY_SECRETS` and uncomment the
+matching rules in `iron-proxy/proxy.yaml`.
+
+### Restricting egress / customising
+
+Edit `iron-proxy/proxy.yaml` and re-run `./run.sh`. Secrets can also be fetched by
+the proxy itself from 1Password, AWS Secrets Manager, or SSM instead of being
+passed in from the host — see the [iron-proxy docs](https://docs.iron.sh/). If an
+agent or tool rejects the proxy CA, add its host to `passthrough`.
 
 ## Custom compose overlays
 
