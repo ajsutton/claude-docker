@@ -1,0 +1,4 @@
+services:
+  claude-dev:
+    volumes:
+      - ${HOME}/.omp:${HOME}/.omp

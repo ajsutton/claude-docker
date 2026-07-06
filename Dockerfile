@@ -120,6 +120,11 @@ RUN mkdir -p ${USER_HOME}/.local && \
     npm config set prefix ${USER_HOME}/.local && \
     npm install -g @openai/codex
 
+# Install Bun and omp in the same user-owned prefix so agent CLI updates can write to it.
+ENV BUN_INSTALL=${USER_HOME}/.local
+RUN curl -fsSL https://bun.sh/install | bash && \
+    ${BUN_INSTALL}/bin/bun install -g @oh-my-pi/pi-coding-agent
+
 RUN go install golang.org/x/tools/gopls@latest
 
 # Configure cargo to use lld linker on Linux. GNU ld processes static libraries

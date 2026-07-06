@@ -1,5 +1,5 @@
 #!/bin/bash
-# Shared connection logic for be-claude and be-shell.
+# Shared connection logic for the be-* launchers.
 # Expects SCRIPT_DIR to be set by the caller.
 # Sets up env forwarding and defines run_remote().
 

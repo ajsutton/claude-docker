@@ -1,0 +1,21 @@
+#!/bin/bash
+set -euo pipefail
+
+# Resolve the real location of this script, following symlinks (macOS + Linux)
+_source="$0"
+while [ -L "$_source" ]; do
+    _dir="$(cd -P "$(dirname "$_source")" && pwd)"
+    _source="$(readlink "$_source")"
+    [[ "$_source" != /* ]] && _source="$_dir/$_source"
+done
+SCRIPT_DIR="$(cd -P "$(dirname "$_source")" && pwd)"
+unset _source _dir
+
+SKIP_CLAUDE_CREDS=1
+source "$SCRIPT_DIR/lib/connect.sh"
+
+if [[ $# -gt 0 ]]; then
+    run_remote "omp ${OMP_ARGS:-} $(printf '%q ' "$@")"
+else
+    run_remote "omp ${OMP_ARGS:-}"
+fi

@@ -47,6 +47,7 @@ build_compose_file_args() {
     # doesn't create it as root on first mount.
     mkdir -p "$HOME/.codex"
     COMPOSE_FILE_ARGS+=(-f modules/codex.yml)
+    [ -d "$HOME/.omp" ] && COMPOSE_FILE_ARGS+=(-f modules/omp.yml)
 
     # User-provided compose overlays
     local f
