@@ -82,6 +82,16 @@ else
     ok 'does not create ~/.omp when it is absent'
 fi
 
+set_case_dirs herdr-present
+mkdir -p "$HOME/.config/herdr"
+touch "$HOME/.config/herdr/config.toml"
+build_compose_file_args
+assert_true 'includes modules/herdr.yml when herdr config.toml exists' has_compose_file modules/herdr.yml
+
+set_case_dirs herdr-absent
+build_compose_file_args
+assert_false 'does not include modules/herdr.yml when herdr config.toml is absent' has_compose_file modules/herdr.yml
+
 if [ "$failures" -ne 0 ]; then
     printf '%s assertion(s) failed\n' "$failures" >&2
     exit 1

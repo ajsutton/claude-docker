@@ -7,6 +7,8 @@ Currently supported agents:
 - [Codex CLI](https://github.com/openai/codex) (OpenAI)
 - [omp](https://omp.sh/) (Oh My Pi)
 
+You can also run [herdr](https://herdr.dev/), a terminal multiplexer that runs several of these agents side by side and tracks the state of each one.
+
 > **Note:** This container provides encapsulation, not a security sandbox. Agents have read/write access to your mounted code directory, your git and agent configs, a GitHub token, and unrestricted internet access. Treat it as a convenience layer for keeping your host system clean, not as a trust boundary.
 
 ## Quick start
@@ -18,10 +20,11 @@ cp .env.example .env
 ./be-claude    # launch Claude Code
 ./be-codex     # launch Codex CLI
 ./be-omp       # launch omp
+./be-herdr     # launch herdr
 ./be-exec npm test
 ```
 
-That's it. `run.sh` builds and starts the container, then use `be-claude`, `be-codex`, or `be-omp` to connect via SSH and launch the agent in your current directory. Set `USE_MOSH=true` in `.env` to use [mosh](https://mosh.org) instead for a resilient connection.
+That's it. `run.sh` builds and starts the container, then use `be-claude`, `be-codex`, `be-omp`, or `be-herdr` to connect via SSH and launch the agent in your current directory. Set `USE_MOSH=true` in `.env` to use [mosh](https://mosh.org) instead for a resilient connection.
 
 If `SSH_AUTHORIZED_KEYS` isn't set in `.env`, `run.sh` automatically uses keys from your ssh-agent.
 
@@ -41,11 +44,11 @@ The agents will read the same instructions.
 
 An Ubuntu container runs an SSH server on port 2222. Your code directory is bind-mounted at the same path inside the container, so file references are identical on both sides. `be-claude` connects via SSH (or mosh if enabled) and starts Claude in the directory matching your current working directory on the host.
 
-The container comes with Go, Node.js, Bun, Rust tooling, [mise](https://mise.run), [gopls](https://pkg.go.dev/golang.org/x/tools/gopls), git, gh, circleci, Claude Code, Codex CLI, omp, and other common development tools pre-installed.
+The container comes with Go, Node.js, Bun, Rust tooling, [mise](https://mise.run), [gopls](https://pkg.go.dev/golang.org/x/tools/gopls), git, gh, circleci, Claude Code, Codex CLI, omp, herdr, and other common development tools pre-installed.
 
 ## Usage
 
-### be-claude / be-codex / be-omp / be-exec
+### be-claude / be-codex / be-omp / be-herdr / be-exec
 
 Run from anywhere inside your `CODE_PATH`:
 
@@ -56,16 +59,18 @@ Run from anywhere inside your `CODE_PATH`:
 ./be-codex --full-auto         # pass arguments through to codex
 ./be-omp                       # launch omp
 ./be-omp --help                # pass arguments through to omp
+./be-herdr                     # launch herdr
+./be-herdr --help              # pass arguments through to herdr
 ./be-exec npm test             # run a command after shell login/init
 ```
 
-All four scripts can be symlinked onto your `PATH` for convenience — they resolve their own location to find `.env`.
+All five scripts can be symlinked onto your `PATH` for convenience — they resolve their own location to find `.env`.
 
 `be-exec` runs the provided command through `zsh -ilc`, which is useful for tools that expect a fully initialized login shell before execution.
 
 Environment variables listed in `FORWARD_ENVS` are forwarded securely into the container via SSH's `SendEnv` mechanism — values never appear in process arguments. Since `.env` is sourced as bash, you can use command substitution to set values dynamically (e.g. `GH_TOKEN=$(gh auth token)`). See `.env.example` for a typical setup.
 
-**Codex CLI** authenticates via `codex` login — credentials are stored in `~/.codex/` which is bind-mounted from the host, so login persists across container rebuilds. **omp** uses `~/.omp/`, which is bind-mounted when it exists. Claude Code credentials are synced automatically from the macOS Keychain (see [Credential sync](#credential-sync)).
+**Codex CLI** authenticates via `codex` login — credentials are stored in `~/.codex/` which is bind-mounted from the host, so login persists across container rebuilds. **omp** uses `~/.omp/`, which is bind-mounted when it exists. **herdr** needs no credentials of its own; it runs the agents above, so their credentials apply. Claude Code credentials are synced automatically from the macOS Keychain (see [Credential sync](#credential-sync)).
 
 ### Starting and stopping
 
@@ -92,6 +97,7 @@ All configuration lives in `.env` (gitignored). Copy `.env.example` to get start
 | `CODEX_ARGS` | *(empty)* | Default arguments passed to codex (e.g. `--full-auto`) |
 | `CODEX_SANDBOX` | `danger-full-access` | Codex sandbox mode — bubblewrap can't create namespaces inside Docker, so sandboxed modes require `--privileged` |
 | `OMP_ARGS` | *(empty)* | Default arguments passed to omp |
+| `HERDR_ARGS` | *(empty)* | Default arguments passed to herdr |
 | `EXTRA_PACKAGES` | *(empty)* | Additional apt packages to install in the container (e.g. `postgresql-client redis-tools`) |
 
 ## Credential sync
@@ -153,6 +159,7 @@ The `certs/` directory is gitignored so certificates stay local.
 | `~/.codex` | `~/.codex` | read/write |
 | `~/.omp` (if present) | `~/.omp` | read/write |
 | `~/.config/worktrunk` | `~/.config/worktrunk` | read/write |
+| `~/.config/herdr/config.toml` (if present) | `~/.config/herdr/config.toml` | read-only |
 | `~/.gitconfig` | `~/.gitconfig` | read-only |
 | `~/.gitignore` | `~/.gitignore` | read-only |
 | `~/.local/state/mise/trusted-configs` | `~/.local/state/mise/host-trusted-configs` | read-only |
@@ -178,7 +185,7 @@ Environment variables redirect tool caches into `~/.cache` so a single volume co
 
 ## Pre-installed tools
 
-git, gh, [circleci](https://circleci.com/docs/guides/toolkit/local-cli/), go, gopls, node, npm, [Bun](https://bun.sh/), [codex](https://github.com/openai/codex), [omp](https://omp.sh/), mise, mosh, tmux, vim, zsh, fzf, ripgrep, diff-so-fancy, jq, make, gpg, [tuicr](https://github.com/agavra/tuicr), [Worktrunk](https://github.com/max-sixty/worktrunk), iTerm2 utilities
+git, gh, [circleci](https://circleci.com/docs/guides/toolkit/local-cli/), go, gopls, node, npm, [Bun](https://bun.sh/), [codex](https://github.com/openai/codex), [omp](https://omp.sh/), mise, mosh, tmux, vim, zsh, fzf, ripgrep, diff-so-fancy, jq, make, gpg, [herdr](https://herdr.dev/), [tuicr](https://github.com/agavra/tuicr), [Worktrunk](https://github.com/max-sixty/worktrunk), iTerm2 utilities
 
 ## SSH agent forwarding
 

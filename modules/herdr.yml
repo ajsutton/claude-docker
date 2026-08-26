@@ -1,0 +1,9 @@
+services:
+  claude-dev:
+    volumes:
+      - type: bind
+        source: ${HERDR_CONFIG_PATH}
+        target: ${HOME}/.config/herdr/config.toml
+        read_only: true
+        bind:
+          create_host_path: false

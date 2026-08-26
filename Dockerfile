@@ -141,3 +141,9 @@ RUN curl https://mise.run | sh && \
 
 # Install Claude Code (native install, auto-updates in background)
 RUN curl -fsSL https://claude.ai/install.sh | bash
+
+# Install herdr into the same user-owned prefix so `herdr update` can write to it.
+# Create the config directory too, so Docker does not create it as root when it
+# mounts config.toml into it.
+RUN curl -fsSL https://herdr.dev/install.sh | sh && \
+    mkdir -p ${USER_HOME}/.config/herdr

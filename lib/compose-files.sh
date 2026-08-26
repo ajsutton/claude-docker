@@ -40,6 +40,14 @@ build_compose_file_args() {
         GITIGNORE_PATH="$(resolve_mount_path "$HOME/.gitignore" .gitignore)"
         COMPOSE_FILE_ARGS+=(-f modules/gitignore.yml)
     fi
+    # herdr: mount only config.toml. Its logs and socket live in the same
+    # directory, so a whole-directory mount would make the host and container
+    # servers fight over the same runtime state.
+    if [ -f "$HOME/.config/herdr/config.toml" ]; then
+        export HERDR_CONFIG_PATH
+        HERDR_CONFIG_PATH="$(resolve_mount_path "$HOME/.config/herdr/config.toml" herdr-config.toml)"
+        COMPOSE_FILE_ARGS+=(-f modules/herdr.yml)
+    fi
     [ -d "$HOME/.local/state/mise" ] && COMPOSE_FILE_ARGS+=(-f modules/mise.yml)
     [ -d "$HOME/.config/worktrunk" ] && COMPOSE_FILE_ARGS+=(-f modules/worktrunk.yml)
 
