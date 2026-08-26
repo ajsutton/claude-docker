@@ -27,39 +27,59 @@ else
     prep=""
 fi
 iterm_opts=()
+et_iterm_opts=()
 if [[ -n "${ITERM_SESSION_ID:-}" ]]; then
     iterm_opts=(-o "SendEnv=ITERM_SESSION_ID")
+    et_iterm_opts=(--ssh-option "SendEnv=ITERM_SESSION_ID")
 fi
 
 # Forward env vars into the container via SSH SendEnv with FORWARD_ prefix.
 # 00-forward-env.sh (in .zshrc.d) strips the prefix during shell init so all
 # processes see the real names.
+# et forwards them the same way: --ssh-option is handed straight to `ssh -o`,
+# and et runs etterminal over that ssh session, so the pty inherits the values.
 send_env_opts=()
+et_send_env_opts=()
 for key in TERM_PROGRAM ${FORWARD_ENVS:-}; do
     [[ -z "${!key:-}" ]] && continue
     export "FORWARD_${key}=${!key}"
     send_env_opts+=(-o "SendEnv=FORWARD_${key}")
+    et_send_env_opts+=(--ssh-option "SendEnv=FORWARD_${key}")
 done
 
 ssh_port="${SSH_PORT:-2222}"
-mosh_port="${MOSH_PORT:-60001}"
+et_port="${ET_PORT:-2022}"
 
 ssh_extra_opts=()
+et_extra_opts=()
 if [[ -n "${SSH_EXTRA_OPTS:-}" ]]; then
     # Word-split SSH_EXTRA_OPTS so users can pass multiple "-o key=value" pairs.
     read -ra ssh_extra_opts <<<"$SSH_EXTRA_OPTS"
+    # Translate the same pairs into et's --ssh-option form.
+    for ((i = 0; i < ${#ssh_extra_opts[@]}; i++)); do
+        if [[ "${ssh_extra_opts[i]}" == "-o" && $((i + 1)) -lt ${#ssh_extra_opts[@]} ]]; then
+            et_extra_opts+=(--ssh-option "${ssh_extra_opts[i + 1]}")
+            i=$((i + 1))
+        fi
+    done
 fi
 
 # run_remote <remote_command>
-# Connects via mosh or ssh and runs the given command.
+# Connects via et or ssh and runs the given command.
 run_remote() {
     local remote_cmd="${prep}$1"
     local exit_code=0
 
-    local ssh_cmd="ssh -p ${ssh_port} ${ssh_extra_opts[*]} ${send_env_opts[*]} ${iterm_opts[*]}"
-
-    if [[ "${USE_MOSH:-false}" == "true" ]] && command -v mosh &>/dev/null; then
-        mosh --ssh="$ssh_cmd" -p "$mosh_port" localhost -- zsh -c "$remote_cmd" || exit_code=$?
+    if [[ "${USE_ET:-false}" == "true" ]] && command -v et &>/dev/null; then
+        # et runs the login shell and then types the command into it, so the
+        # command is not wrapped in an explicit shell invocation.
+        # -f replaces ssh's -A for agent forwarding.
+        et -f -c "$remote_cmd" \
+            --ssh-option "Port=${ssh_port}" \
+            ${et_extra_opts[@]+"${et_extra_opts[@]}"} \
+            ${et_send_env_opts[@]+"${et_send_env_opts[@]}"} \
+            ${et_iterm_opts[@]+"${et_iterm_opts[@]}"} \
+            "localhost:${et_port}" || exit_code=$?
     else
         ssh -A -t -p "${ssh_port}" ${ssh_extra_opts[@]+"${ssh_extra_opts[@]}"} ${send_env_opts[@]+"${send_env_opts[@]}"} ${iterm_opts[@]+"${iterm_opts[@]}"} localhost "$remote_cmd" || exit_code=$?
     fi

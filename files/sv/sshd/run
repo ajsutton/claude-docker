@@ -1,0 +1,3 @@
+#!/bin/sh
+# -e sends the log to stderr, which runsv forwards to the container log.
+exec /usr/sbin/sshd -D -e

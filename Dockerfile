@@ -5,7 +5,8 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     git curl zsh fzf ripgrep make zip unzip \
     iptables ipset iproute2 dnsutils \
     openssh-server jq vim golang gpg python3-venv \
-    ca-certificates tmux mosh libclang-dev libssl-dev lld \
+    ca-certificates tmux libclang-dev libssl-dev lld \
+    software-properties-common \
     tzdata xz-utils
 
 # Install gh from GitHub's official apt repo (Ubuntu's package is frozen at 2.45.0)
@@ -16,6 +17,22 @@ RUN mkdir -p -m 755 /etc/apt/keyrings && \
     echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
         > /etc/apt/sources.list.d/github-cli.list && \
     apt-get update && apt-get install -y gh
+
+# Install Eternal Terminal from the upstream PPA. et keeps the terminal session
+# alive across TCP resets, so a laptop sleep does not kill the connection.
+RUN add-apt-repository -y ppa:jgmath2000/et && \
+    apt-get update && apt-get install -y et
+
+# Install runit to supervise sshd and etserver. --no-install-recommends keeps
+# out runit-run, which wires runsvdir into an init system this container has not
+# got. runit needs a sysusers implementation; name the standalone one, because
+# apt otherwise picks the first alternative and pulls in all of systemd.
+# Services live in our own directory, not the package's /etc/service, so the
+# Debian runlevel machinery stays out of the way.
+RUN apt-get install -y --no-install-recommends systemd-standalone-sysusers runit
+ENV SVDIR=/etc/claude-docker/sv
+COPY files/sv/ /etc/claude-docker/sv/
+RUN chmod +x /etc/claude-docker/sv/*/run
 
 # Install CircleCI CLI
 RUN curl -fLSs https://raw.githubusercontent.com/CircleCI-Public/circleci-cli/main/install.sh | bash
@@ -109,7 +126,7 @@ RUN ARCH=$(uname -m) && \
     | tar xJ --strip-components=1 -C /usr/local/bin "worktrunk-${TARGET}/wt" "worktrunk-${TARGET}/git-wt" && \
     chmod +x /usr/local/bin/wt /usr/local/bin/git-wt
 
-# Entrypoint runs as root to set up SSH, then sshd handles user sessions
+# Entrypoint runs as root to set up SSH, then hands off to runsvdir
 COPY files/entrypoint.sh /usr/local/bin/entrypoint.sh
 
 USER $USERNAME

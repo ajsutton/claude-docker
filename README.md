@@ -24,7 +24,7 @@ cp .env.example .env
 ./be-exec npm test
 ```
 
-That's it. `run.sh` builds and starts the container, then use `be-claude`, `be-codex`, `be-omp`, or `be-herdr` to connect via SSH and launch the agent in your current directory. Set `USE_MOSH=true` in `.env` to use [mosh](https://mosh.org) instead for a resilient connection.
+That's it. `run.sh` builds and starts the container, then use `be-claude`, `be-codex`, `be-omp`, or `be-herdr` to connect via SSH and launch the agent in your current directory. Set `USE_ET=true` in `.env` to use [Eternal Terminal](https://eternalterminal.dev) instead. et keeps the session connected when your host sleeps and wakes.
 
 If `SSH_AUTHORIZED_KEYS` isn't set in `.env`, `run.sh` automatically uses keys from your ssh-agent.
 
@@ -42,7 +42,7 @@ The agents will read the same instructions.
 
 ## How it works
 
-An Ubuntu container runs an SSH server on port 2222. Your code directory is bind-mounted at the same path inside the container, so file references are identical on both sides. `be-claude` connects via SSH (or mosh if enabled) and starts Claude in the directory matching your current working directory on the host.
+An Ubuntu container runs an SSH server on port 2222 and an et server on port 2022, both supervised by runit. Your code directory is bind-mounted at the same path inside the container, so file references are identical on both sides. `be-claude` connects via SSH (or et if enabled) and starts Claude in the directory matching your current working directory on the host.
 
 The container comes with Go, Node.js, Bun, Rust tooling, [mise](https://mise.run), [gopls](https://pkg.go.dev/golang.org/x/tools/gopls), git, gh, circleci, Claude Code, Codex CLI, omp, herdr, and other common development tools pre-installed.
 
@@ -79,6 +79,20 @@ Environment variables listed in `FORWARD_ENVS` are forwarded securely into the c
 ./stop.sh    # stop (docker compose down)
 ```
 
+### Process supervision
+
+[runit](http://smarden.org/runit/) runs as PID 1 and supervises two services, `sshd` and `etserver`. If either one exits, runit restarts it. Service definitions live in `files/sv/` and are copied to `/etc/claude-docker/sv/` in the image.
+
+Check or control a service from the host:
+
+```sh
+docker exec claude-dev sv status etserver
+docker exec claude-dev sv restart etserver
+docker logs claude-dev              # both services log here
+```
+
+`sv` needs root, so run it through `docker exec` rather than from an agent session.
+
 ## Configuration
 
 All configuration lives in `.env` (gitignored). Copy `.env.example` to get started.
@@ -88,8 +102,8 @@ All configuration lives in `.env` (gitignored). Copy `.env.example` to get start
 | `CODE_PATH` | *(required)* | Absolute path to your code directory on the host |
 | `SSH_AUTHORIZED_KEYS` | ssh-agent keys | SSH public key(s) allowed into the container |
 | `SSH_PORT` | `2222` | Host port mapped to the container's SSH server |
-| `USE_MOSH` | `false` | Set to `true` to use mosh instead of SSH (requires mosh on host) |
-| `MOSH_PORT` | `60001` | Host port mapped to the container's mosh server (UDP, only used when `USE_MOSH=true`) |
+| `USE_ET` | `false` | Set to `true` to use Eternal Terminal instead of SSH (requires `et` on host) |
+| `ET_PORT` | `2022` | Host port mapped to the container's et server (only used when `USE_ET=true`) |
 | `COMPOSE_PROJECT_NAME` | `claude-dev` | Container name — override to run multiple instances |
 | `CLAUDE_ARGS` | *(empty)* | Default arguments passed to claude (e.g. `--dangerously-skip-permissions`) |
 | `FORWARD_ENVS` | *(empty)* | Space-separated list of env var names to forward into the container |
@@ -185,7 +199,7 @@ Environment variables redirect tool caches into `~/.cache` so a single volume co
 
 ## Pre-installed tools
 
-git, gh, [circleci](https://circleci.com/docs/guides/toolkit/local-cli/), go, gopls, node, npm, [Bun](https://bun.sh/), [codex](https://github.com/openai/codex), [omp](https://omp.sh/), mise, mosh, tmux, vim, zsh, fzf, ripgrep, diff-so-fancy, jq, make, gpg, [herdr](https://herdr.dev/), [tuicr](https://github.com/agavra/tuicr), [Worktrunk](https://github.com/max-sixty/worktrunk), iTerm2 utilities
+git, gh, [circleci](https://circleci.com/docs/guides/toolkit/local-cli/), go, gopls, node, npm, [Bun](https://bun.sh/), [codex](https://github.com/openai/codex), [omp](https://omp.sh/), mise, [et](https://eternalterminal.dev), runit, tmux, vim, zsh, fzf, ripgrep, diff-so-fancy, jq, make, gpg, [herdr](https://herdr.dev/), [tuicr](https://github.com/agavra/tuicr), [Worktrunk](https://github.com/max-sixty/worktrunk), iTerm2 utilities
 
 ## SSH agent forwarding
 

@@ -13,7 +13,7 @@ services:
         EXTRA_NPM_PACKAGES: ${EXTRA_NPM_PACKAGES:-}
     ports:
       - "${SSH_PORT:-2222}:22"
-      - "${MOSH_PORT:-60001}:60001/udp"
+      - "${ET_PORT:-2022}:2022"
     volumes:
       - ${CODE_PATH}:${CODE_PATH}
       - ${HOME}/.claude:${HOME}/.claude
@@ -34,6 +34,10 @@ services:
 
     user: root
     entrypoint: /usr/local/bin/entrypoint.sh
+
+    # runsvdir exits on SIGTERM without stopping its services. SIGHUP makes it
+    # stop sshd and etserver first, so `docker compose down` is clean.
+    stop_signal: SIGHUP
 
     restart: always
 

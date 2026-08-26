@@ -26,4 +26,6 @@ for f in /etc/claude-docker/init.d/*.sh; do
   [ -f "$f" ] && . "$f"
 done
 
-exec /usr/sbin/sshd -D
+# runsvdir supervises sshd and etserver, and restarts either one if it exits.
+# It also reaps orphaned processes, because it runs as PID 1.
+exec runsvdir /etc/claude-docker/sv
