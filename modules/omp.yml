@@ -2,3 +2,4 @@ services:
   claude-dev:
     volumes:
       - ${HOME}/.omp:${HOME}/.omp
+      - ./files/omp-pin-bun.init.sh:/etc/claude-docker/init.d/omp-pin-bun.sh:ro

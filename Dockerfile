@@ -138,8 +138,11 @@ RUN mkdir -p ${USER_HOME}/.local && \
     npm install -g @openai/codex
 
 # Install Bun and omp in the same user-owned prefix so agent CLI updates can write to it.
+# Bun is pinned because omp runs on it and fails to parse its own bundle on an
+# older bun. files/omp-pin-bun.init.sh makes omp use this bun by absolute path.
+ARG BUN_VERSION=1.4.0
 ENV BUN_INSTALL=${USER_HOME}/.local
-RUN curl -fsSL https://bun.sh/install | bash && \
+RUN curl -fsSL https://bun.sh/install | bash -s "bun-v${BUN_VERSION}" && \
     ${BUN_INSTALL}/bin/bun install -g @oh-my-pi/pi-coding-agent
 
 RUN go install golang.org/x/tools/gopls@latest
