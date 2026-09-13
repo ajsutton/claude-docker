@@ -72,7 +72,11 @@ Environment variables listed in `FORWARD_ENVS` are forwarded securely into the c
 
 **Codex CLI** authenticates via `codex` login — credentials are stored in `~/.codex/` which is bind-mounted from the host, so login persists across container rebuilds. **omp** uses `~/.omp/`, which is bind-mounted when it exists. **herdr** needs no credentials of its own; it runs the agents above, so their credentials apply. Claude Code credentials are synced automatically from the macOS Keychain (see [Credential sync](#credential-sync)).
 
-**omp launcher:** `bun install -g` writes the omp launcher as a standalone copy of the bundle in `~/.local/bin` with a `#!/usr/bin/env bun` shebang. `files/omp-pin-bun.init.sh` replaces that copy with a wrapper at container start. The wrapper calls the image's bun by absolute path, so a repository that pins an older bun through mise cannot shadow it. It also runs the bundle inside `node_modules`, which the pi-natives loader needs to find the platform addon.
+**omp launcher:** `bun install -g` links `~/.local/bin/omp` to the bundle in `node_modules`.
+`files/omp-pin-bun.init.sh` replaces that link with a wrapper at each container start.
+The wrapper calls the image Bun by absolute path.
+This prevents mise from selecting an older repository Bun.
+It also keeps the entry point in `node_modules`, where pi-natives can find its platform addon.
 
 ### Starting and stopping
 
