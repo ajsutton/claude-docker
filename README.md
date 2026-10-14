@@ -133,6 +133,17 @@ On non-macOS hosts, the credentials file (`~/.claude/.credentials.json`) is the 
 
 To disable syncing, set `CLAUDE_CREDENTIAL_SYNC=false` in `.env`.
 
+### Remote MCP servers
+
+Claude Code keeps the OAuth tokens of remote MCP servers in the same credential blob, under `mcpOAuth`. The sync merges that map per server, so each side keeps its own logins. Run `claude mcp login <name>` on the host, because the container has no browser for the OAuth callback. The next `be-claude` session copies the token into the container.
+
+MCP server definitions come from `~/.claude.json`, which `run.sh` stages for the container. Add a server with `claude mcp add -s user ...` on the host, then run `./run.sh`. To add it to a running container without a restart:
+
+```sh
+docker exec -u "$USER" claude-docker bash -lc \
+  'claude mcp add -s user --transport http notion https://mcp.notion.com/mcp'
+```
+
 ## Custom compose overlays
 
 Drop `.yml` files into `compose.d/` to extend the Docker Compose configuration. All files are automatically included by `run.sh`. The directory is gitignored so overlays stay local.
