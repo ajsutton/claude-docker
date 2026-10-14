@@ -113,6 +113,8 @@ All configuration lives in `.env` (gitignored). Copy `.env.example` to get start
 | `COMPOSE_PROJECT_NAME` | `claude-dev` | Container name — override to run multiple instances |
 | `CLAUDE_ARGS` | *(empty)* | Default arguments passed to claude (e.g. `--dangerously-skip-permissions`) |
 | `FORWARD_ENVS` | *(empty)* | Space-separated list of env var names to forward into the container |
+| `KEY_HELPER_PATH` | *(empty)* | Absolute path of a host key helper to replace in the container (see [Key helpers](#key-helpers)) |
+| `KEY_HELPER_COMMAND` | `$KEY_HELPER_PATH` | Host command that prints the key to forward |
 | `CLAUDE_CREDENTIAL_SYNC` | `true` | Set to `false` to disable automatic credential sync (see below) |
 | `CODEX_ARGS` | *(empty)* | Default arguments passed to codex (e.g. `--full-auto`) |
 | `CODEX_SANDBOX` | `danger-full-access` | Codex sandbox mode — bubblewrap can't create namespaces inside Docker, so sandboxed modes require `--privileged` |
@@ -143,6 +145,27 @@ MCP server definitions come from `~/.claude.json`, which `run.sh` stages for the
 docker exec -u "$USER" claude-docker bash -lc \
   'claude mcp add -s user --transport http notion https://mcp.notion.com/mcp'
 ```
+
+## Key helpers
+
+Some tools get an API key from a helper command, for example `apiKeyHelper` in `~/.claude/settings.json` or `auth.command` in a Codex provider. The container shares these configs with the host. A host helper often fails in the container, for example when it reads the macOS Keychain.
+
+Set `KEY_HELPER_PATH` in `.env` to the absolute path of the host helper. Each `be-*` session then does these steps:
+
+1. On the host, it runs `KEY_HELPER_COMMAND` and captures the key. The default command runs the helper at `KEY_HELPER_PATH`.
+2. It forwards the key as `KEY_HELPER_SECRET` with the other `FORWARD_ENVS` values.
+3. In the container, shell init links `KEY_HELPER_PATH` to a helper that prints `KEY_HELPER_SECRET`.
+
+The tool configs then work in the container without changes. The key stays out of files and process arguments. Each new session reads the key again, so a renewed key arrives with the next session.
+
+Example for a key in the macOS Keychain:
+
+```sh
+KEY_HELPER_PATH="$HOME/.local/bin/my-key-helper"
+KEY_HELPER_COMMAND="security find-generic-password -s my-api-key -w"
+```
+
+`KEY_HELPER_PATH` must not be on a mount that the host shares, such as `~/.claude`. The container would replace the host helper. Shell init refuses such a path and shows a warning.
 
 ## Custom compose overlays
 

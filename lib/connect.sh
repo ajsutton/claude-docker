@@ -33,6 +33,9 @@ if [[ -n "${ITERM_SESSION_ID:-}" ]]; then
     et_iterm_opts=(--ssh-option "SendEnv=ITERM_SESSION_ID")
 fi
 
+source "$SCRIPT_DIR/lib/key-helper.sh"
+load_key_helper_secret
+
 # Forward env vars into the container via SSH SendEnv with FORWARD_ prefix.
 # 00-forward-env.sh (in .zshrc.d) strips the prefix during shell init so all
 # processes see the real names.
@@ -40,7 +43,7 @@ fi
 # and et runs etterminal over that ssh session, so the pty inherits the values.
 send_env_opts=()
 et_send_env_opts=()
-for key in TERM_PROGRAM ${FORWARD_ENVS:-}; do
+for key in TERM_PROGRAM KEY_HELPER_PATH KEY_HELPER_SECRET ${FORWARD_ENVS:-}; do
     [[ -z "${!key:-}" ]] && continue
     export "FORWARD_${key}=${!key}"
     send_env_opts+=(-o "SendEnv=FORWARD_${key}")

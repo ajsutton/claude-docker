@@ -78,6 +78,8 @@ RUN mkdir -p ${USER_HOME}/.zshrc.d && \
     chown ${USERNAME}:${USERNAME} ${USER_HOME}/.zshrc.d
 COPY --chown=${USERNAME}:${USERNAME} files/00-forward-env.sh ${USER_HOME}/.zshrc.d/00-forward-env.sh
 COPY --chown=${USERNAME}:${USERNAME} files/10-worktrunk.sh ${USER_HOME}/.zshrc.d/10-worktrunk.sh
+COPY --chown=${USERNAME}:${USERNAME} files/20-key-helper.sh ${USER_HOME}/.zshrc.d/20-key-helper.sh
+COPY files/key-helper /usr/local/bin/claude-docker-key-helper
 COPY --chown=${USERNAME}:${USERNAME} files/setupGitSigning.sh ${USER_HOME}/.zshrc.d/setupGitSigning.sh
 
 # Setup SSH authorized_keys from build arg

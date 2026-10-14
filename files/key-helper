@@ -1,0 +1,12 @@
+#!/bin/sh
+# Prints the key that the be-* launcher read on the host and forwarded as KEY_HELPER_SECRET.
+# 20-key-helper.sh links KEY_HELPER_PATH to this script, so tool configs that name the host
+# helper (for example apiKeyHelper in ~/.claude/settings.json) work in the container too.
+
+if [ -n "${KEY_HELPER_SECRET:-}" ]; then
+    printf '%s' "$KEY_HELPER_SECRET"
+    exit 0
+fi
+
+echo "claude-docker: no key was forwarded from the host. Check KEY_HELPER_PATH and KEY_HELPER_COMMAND in .env, then start a new be-* session." >&2
+exit 1
